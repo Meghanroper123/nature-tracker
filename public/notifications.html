@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications - Nature Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            font-size: 16px;
+        }
+
+        .content-container {
+            max-width: 1200px;
+            margin: 32px auto;
+            padding: 0 24px;
+        }
+
+        .notifications-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 0 32px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border-bottom: var(--glass-border);
+            box-shadow: var(--glass-shadow);
+        }
+
+        .notifications-header h1 {
+            font-size: 16px;
+            font-weight: 500;
+            margin: 0;
+            color: var(--text-primary);
+            padding: 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notifications-header h1::before {
+            content: "\f0f3";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            font-size: 14px;
+            color: inherit;
+            display: inline-block;
+        }
+
+        .notifications-filters {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .time-filter-btn {
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: var(--glass-border);
+            background: var(--glass-bg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: 500;
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+        }
+
+        .time-filter-btn:hover {
+            background: var(--background-darker);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .time-filter-btn.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+
+        .notifications-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .action-buttons {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .preferences-btn, .mark-all-read-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: var(--glass-border);
+            background: var(--glass-bg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: 500;
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+        }
+
+        .preferences-btn:hover, .mark-all-read-btn:hover {
+            background: var(--background-darker);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .notifications-content {
+            background: var(--glass-bg);
+            border-radius: 20px;
+            border: var(--glass-border);
+            padding: 32px;
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            min-height: 500px;
+            margin-top: 20px;
+        }
+
+        .notification-item {
+            padding: 20px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 12px;
+            margin-bottom: 8px;
+        }
+
+        .notification-item:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .notification-item.unread {
+            background-color: rgba(43, 76, 52, 0.05);
+        }
+
+        .notification-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+        }
+
+        .notification-icon {
+            background: var(--primary-color);
+            color: white;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .notification-icon i {
+            font-size: 18px;
+        }
+
+        .notification-details {
+            flex: 1;
+        }
+
+        .notification-details h3 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .notification-details p {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .notification-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: var(--text-tertiary);
+        }
+
+        .notification-tag {
+            background: var(--primary-light);
+            color: var(--primary-color);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .notification-item.unread .notification-details h3::after {
+            content: '';
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 0;
+            font-size: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            color: var(--text-muted);
+            min-height: 300px;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            color: var(--text-muted);
+            opacity: 0.5;
+        }
+
+        .loading-indicator {
+            display: flex;
+            justify-content: center;
+            padding: 60px 0;
+            min-height: 300px;
+            align-items: center;
+        }
+
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid var(--primary-color);
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Date Section Styles */
+        .notification-date-section {
+            margin-bottom: 30px;
+        }
+
+        .date-header {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            margin: 24px 0 16px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            letter-spacing: 0.5px;
+        }
+
+        /* Notification Preferences Panel */
+        .preferences-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 360px;
+            height: 100vh;
+            background: white;
+            border-left: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            transition: right 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .preferences-panel.visible {
+            right: 0;
+            display: block !important;
+        }
+
+        .preferences-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .preferences-header h2 {
+            font-size: 22px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-tertiary);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .close-btn:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--text-primary);
+        }
+
+        .preferences-content {
+            padding: 24px;
+        }
+
+        .preference-section {
+            margin-bottom: 32px;
+        }
+
+        .preference-section h3 {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin: 0 0 4px 0;
+        }
+
+        .section-desc {
+            font-size: 14px;
+            color: var(--text-tertiary);
+            margin: 0 0 16px 0;
+        }
+
+        .preference-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Checkbox styles */
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            color: var(--text-primary);
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-left: 36px;
+        }
+
+        .checkbox-container input {
+            position: absolute;
+            opacity: 0;
+            height: 0;
+            width: 0;
+        }
+
+        .checkmark {
+            position: absolute;
+            left: 0;
+            height: 20px;
+            width: 20px;
+            background-color: #fff;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-container:hover .checkmark {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .checkbox-container input:checked ~ .checkmark {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        /* Colored checkmarks */
+        .checkmark.blue {
+            border-color: #2196F3;
+        }
+
+        .checkbox-container input:checked ~ .checkmark.blue {
+            background-color: #2196F3;
+        }
+
+        .checkmark.orange {
+            border-color: #FF9800;
+        }
+
+        .checkbox-container input:checked ~ .checkmark.orange {
+            background-color: #FF9800;
+        }
+
+        .checkmark.red {
+            border-color: #F44336;
+        }
+
+        .checkbox-container input:checked ~ .checkmark.red {
+            background-color: #F44336;
+        }
+
+        .checkmark.green {
+            border-color: #4CAF50;
+        }
+
+        .checkbox-container input:checked ~ .checkmark.green {
+            background-color: #4CAF50;
+        }
+
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+        }
+
+        .checkbox-container input:checked ~ .checkmark:after {
+            display: block;
+        }
+
+        .checkbox-container .checkmark:after {
+            left: 7px;
+            top: 3px;
+            width: 4px;
+            height: 9px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        /* Range slider */
+        .range-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.1);
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .slider::-webkit-slider-thumb:hover {
+            box-shadow: 0 0 0 8px var(--primary-light);
+        }
+
+        .range-value {
+            font-size: 14px;
+            color: var(--text-secondary);
+            align-self: flex-end;
+        }
+
+        /* Save button */
+        .save-preferences-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #F59E0B, #D97706);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-md);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 16px;
+            margin-top: 16px;
+        }
+
+        .save-preferences-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Toast Message */
+        .toast-message {
+            position: fixed;
+            bottom: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 1100;
+            transition: bottom 0.3s ease;
+        }
+
+        .toast-message.visible {
+            bottom: 32px;
+        }
+
+        .error-message {
+            color: #d32f2f;
+            text-align: center;
+            padding: 80px 0;
+            background: rgba(211, 47, 47, 0.05);
+            border-radius: 8px;
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .error-message i {
+            font-size: 48px;
+            color: #d32f2f;
+            opacity: 0.8;
+        }
+
+        .error-message p {
+            font-size: 16px;
+            margin: 0;
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .action-button {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            border-radius: 50%;
+            text-decoration: none;
+            transition: background-color 0.2s ease;
+        }
+
+        .action-button i {
+            font-size: 20px;
+        }
+
+        .action-button:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .unread-badge {
+            position: absolute;
+            top: 3px;
+            right: 3px;
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 10px;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: bold;
+        }
+
+        .unread-badge.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header class="top-header">
+        <div class="location">
+            <i class="fas fa-map-marker-alt"></i>
+            Southern California
+        </div>
+        <a href="/" class="brand">
+            <span class="brand-pin">📍</span>
+            Nature Tracker
+        </a>
+        <div class="actions">
+            <a href="/" class="action-button">
+                <i class="fas fa-map"></i>
+            </a>
+            <a href="/bookmarks.html" class="action-button">
+                <i class="fas fa-bookmark"></i>
+            </a>
+            <a href="/notifications.html" class="action-button active">
+                <i class="fas fa-bell"></i>
+                <span class="unread-badge hidden">0</span>
+            </a>
+            <a href="/profile.html" class="action-button">
+                <i class="fas fa-user"></i>
+            </a>
+        </div>
+    </header>
+
+    <div class="content-container">
+        <div class="notifications-header">
+            <h1>Notifications</h1>
+            <div class="notifications-filters">
+                <button class="time-filter-btn active" data-filter="all">All</button>
+                <button class="time-filter-btn" data-filter="week">This Week</button>
+                <button class="time-filter-btn" data-filter="today">Today</button>
+            </div>
+        </div>
+
+        <div class="notifications-actions">
+            <div class="action-buttons">
+                <button class="preferences-btn" id="preferences-btn">
+                    <i class="fas fa-cog"></i>
+                    <span>Preferences</span>
+                </button>
+                <button class="mark-all-read-btn" id="mark-all-read">
+                    <i class="fas fa-check-double"></i>
+                    <span>Mark all as read</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="notifications-content">
+            <div class="loading-indicator">
+                <div class="loading-spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Preferences Panel -->
+    <div class="preferences-panel">
+        <div class="preferences-header">
+            <h2>Notification Settings</h2>
+            <button class="close-btn" id="close-preferences">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="preferences-content">
+            <div class="preference-section">
+                <h3>Categories</h3>
+                <p class="section-desc">Choose categories you'd like to be notified about</p>
+                <div class="preference-options">
+                    <label class="checkbox-container">
+                        <input type="checkbox" checked data-category="wildlife">
+                        <span class="checkmark"></span>
+                        Wildlife
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" checked data-category="plant">
+                        <span class="checkmark"></span>
+                        Plants & Flowers
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" checked data-category="weather">
+                        <span class="checkmark"></span>
+                        Weather Events
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" checked data-category="astronomy">
+                        <span class="checkmark"></span>
+                        Astronomical Events
+                    </label>
+                </div>
+            </div>
+            
+            <div class="preference-section">
+                <h3>Location Radius</h3>
+                <p class="section-desc">Get alerts for events within this distance</p>
+                <div class="preference-options">
+                    <div class="range-container">
+                        <input type="range" min="1" max="50" value="25" class="slider" id="location-radius">
+                        <span class="range-value">25 miles</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="preference-section">
+                <h3>Notification Types</h3>
+                <p class="section-desc">Select which types of notifications you want to receive</p>
+                <div class="preference-options">
+                    <label class="checkbox-container">
+                        <input type="checkbox" checked data-notification-type="new_event">
+                        <span class="checkmark blue"></span>
+                        New Event Alerts
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" checked data-notification-type="location_alert">
+                        <span class="checkmark orange"></span>
+                        Location-based Alerts
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" checked data-notification-type="trending">
+                        <span class="checkmark red"></span>
+                        Trending Events
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" checked data-notification-type="following_activity">
+                        <span class="checkmark green"></span>
+                        Following Activity
+                    </label>
+                </div>
+            </div>
+            
+            <button class="save-preferences-btn" id="save-preferences">
+                <i class="fas fa-check"></i>
+                Save Preferences
+            </button>
+        </div>
+    </div>
+
+    <script src="/js/notifications.js"></script>
+</body>
+</html> 

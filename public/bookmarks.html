@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookmarks - Nature Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .bookmarks-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 0 32px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border-bottom: var(--glass-border);
+            box-shadow: var(--glass-shadow);
+        }
+
+        .bookmarks-header h1 {
+            font-size: 16px;
+            font-weight: 500;
+            margin: 0;
+            color: var(--text-primary);
+            padding: 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bookmarks-header h1::before {
+            content: "\f02e";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            font-size: 14px;
+            color: inherit;
+            display: inline-block;
+        }
+
+        .bookmarks-filters {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filter-button {
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: var(--glass-border);
+            background: var(--glass-bg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: 500;
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+        }
+
+        .filter-button:hover {
+            background: var(--background-darker);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .filter-button.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+
+        .bookmarks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 28px;
+            padding: 4px;
+        }
+
+        .bookmark-card {
+            background: var(--glass-bg);
+            border-radius: 20px;
+            border: var(--glass-border);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+        }
+
+        .bookmark-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .bookmark-image {
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .bookmark-card:hover .bookmark-image {
+            transform: scale(1.05);
+        }
+
+        .bookmark-content {
+            padding: 24px;
+        }
+
+        .bookmark-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .feed-type {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .feed-time {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .bookmark-content h3 {
+            margin: 0 0 8px 0;
+            font-size: 20px;
+            color: var(--text-primary);
+            line-height: 1.4;
+        }
+
+        .bookmark-content p {
+            margin: 0;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .feed-location {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 16px;
+            padding: 6px 12px;
+            background: var(--background-darker);
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .bookmark-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .action-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            padding: 8px 12px;
+            border-radius: 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        .action-link:hover {
+            color: var(--primary-color);
+            background: var(--background-darker);
+        }
+
+        .action-link i {
+            font-size: 16px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 48px;
+            background: var(--glass-bg);
+            border-radius: 20px;
+            border: var(--glass-border);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+            .bookmarks-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .bookmarks-filters {
+                width: 100%;
+                overflow-x: auto;
+                padding-bottom: 8px;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .filter-button {
+                flex-shrink: 0;
+            }
+
+            .bookmarks-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .bookmark-content {
+                padding: 20px;
+            }
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 24px;
+            font-weight: 500;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .brand i {
+            color: var(--text-primary);
+        }
+
+        .brand-pin {
+            font-size: 24px;
+            -webkit-text-fill-color: initial;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <header class="top-header">
+        <div class="location">
+            <i class="fas fa-map-marker-alt"></i>
+            Southern California
+        </div>
+        <a href="/" class="brand">
+            <span class="brand-pin">📍</span>
+            Nature Tracker
+        </a>
+        <div class="actions">
+            <a href="/" class="action-button">
+                <i class="fas fa-map"></i>
+            </a>
+            <a href="/bookmarks.html" class="action-button active">
+                <i class="fas fa-bookmark"></i>
+            </a>
+            <a href="/notifications.html" class="action-button">
+                <i class="fas fa-bell"></i>
+            </a>
+            <a href="/profile.html" class="action-button">
+                <i class="fas fa-user"></i>
+            </a>
+        </div>
+    </header>
+
+    <div class="content-container">
+        <div class="bookmarks-header">
+            <h1>Your Bookmarks</h1>
+            <div class="bookmarks-filters">
+                <button class="filter-button active" data-type="all">All</button>
+                <button class="filter-button" data-type="wildlife">Wildlife</button>
+                <button class="filter-button" data-type="ocean">Ocean</button>
+                <button class="filter-button" data-type="plant">Plants</button>
+                <button class="filter-button" data-type="astronomy">Astronomy</button>
+            </div>
+        </div>
+
+        <div class="bookmarks-grid">
+            <!-- Bookmarks will be populated here -->
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module">
+        import bookmarkManager from './js/bookmarks.js';
+
+        // Function to format relative time
+        function getRelativeTime(timestamp) {
+            const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+            const now = new Date();
+            const bookmarkDate = new Date(timestamp);
+            const diffInDays = Math.floor((bookmarkDate - now) / (1000 * 60 * 60 * 24));
+            
+            if (diffInDays === 0) {
+                const diffInHours = Math.floor((bookmarkDate - now) / (1000 * 60 * 60));
+                if (diffInHours === 0) {
+                    const diffInMinutes = Math.floor((bookmarkDate - now) / (1000 * 60));
+                    return rtf.format(diffInMinutes, 'minute');
+                }
+                return rtf.format(diffInHours, 'hour');
+            }
+            return rtf.format(diffInDays, 'day');
+        }
+
+        // Function to render bookmarks
+        function renderBookmarks(type = 'all') {
+            const bookmarksGrid = document.querySelector('.bookmarks-grid');
+            const bookmarks = bookmarkManager.getBookmarksByType(type);
+
+            if (bookmarks.length === 0) {
+                bookmarksGrid.innerHTML = `
+                    <p class="empty-state">No bookmarks yet. Start saving interesting sightings!</p>
+                `;
+                return;
+            }
+
+            bookmarksGrid.innerHTML = bookmarks.map(bookmark => `
+                <div class="bookmark-card" data-id="${bookmark.id}">
+                    <img src="${bookmark.imageUrl}" alt="${bookmark.title}" class="bookmark-image">
+                    <div class="bookmark-content">
+                        <div class="bookmark-meta">
+                            <span class="feed-type ${bookmark.type.toLowerCase()}">${bookmark.type}</span>
+                            <span class="feed-time">Saved ${getRelativeTime(bookmark.bookmarkedAt)}</span>
+                        </div>
+                        <h3>${bookmark.title}</h3>
+                        <p>${bookmark.description}</p>
+                        <div class="feed-location">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>${bookmark.location}</span>
+                        </div>
+                        <div class="bookmark-actions">
+                            <a href="/" class="action-link view-on-map" data-lat="${bookmark.coordinates?.lat}" data-lng="${bookmark.coordinates?.lng}">
+                                <i class="fas fa-map-marker-alt"></i>
+                                View on Map
+                            </a>
+                            <button class="action-link remove-bookmark">
+                                <i class="fas fa-bookmark"></i>
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add event listeners for bookmark actions
+            document.querySelectorAll('.remove-bookmark').forEach(button => {
+                button.addEventListener('click', () => {
+                    const card = button.closest('.bookmark-card');
+                    const itemId = card.dataset.id;
+                    
+                    bookmarkManager.removeBookmark(itemId);
+                    card.style.opacity = '0';
+                    setTimeout(() => {
+                        renderBookmarks(type);
+                    }, 300);
+                });
+            });
+
+            document.querySelectorAll('.view-on-map').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const lat = parseFloat(link.dataset.lat);
+                    const lng = parseFloat(link.dataset.lng);
+                    if (lat && lng) {
+                        // Store the coordinates in sessionStorage to be used by the map page
+                        sessionStorage.setItem('view_location', JSON.stringify({ lat, lng }));
+                        window.location.href = '/';
+                    }
+                });
+            });
+        }
+
+        // Add click handlers for filter buttons
+        document.querySelectorAll('.filter-button').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.filter-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                button.classList.add('active');
+                renderBookmarks(button.dataset.type);
+            });
+        });
+
+        // Initial render
+        renderBookmarks();
+    </script>
+</body>
+</html> 

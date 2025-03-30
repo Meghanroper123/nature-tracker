@@ -1,0 +1,80 @@
+[
+  {
+    "id": 1,
+    "type": "Ocean",
+    "title": "Bioluminescence ",
+    "description": "Bioluminescent waves in Santa Monica",
+    "location": {
+      "lat": 33.999650550533595,
+      "lng": -118.50368499755861
+    },
+    "imageUrl": "/uploads/1742362068128-167629119.jpg",
+    "timestamp": "2025-03-19T05:27:48.131Z",
+    "eventDate": "2025-03-19T05:27:48.131Z"
+  },
+  {
+    "id": 5,
+    "type": "Wildlife",
+    "title": "Whale Migration",
+    "description": "Whales migrating in the Bay ",
+    "location": {
+      "lat": 33.944414653404806,
+      "lng": -118.45561981201173
+    },
+    "imageUrl": "/uploads/1742436379390-332630175.jpg",
+    "timestamp": "2025-03-20T02:06:19.404Z",
+    "eventDate": "2025-03-20T02:06:19.404Z"
+  },
+  {
+    "id": 3,
+    "type": "Plant",
+    "title": "Superbloom",
+    "description": "superbloom in santa monica",
+    "location": {
+      "lat": 34.068502744259796,
+      "lng": -118.50505828857423
+    },
+    "imageUrl": "/uploads/1742439610187-773855592.jpg",
+    "timestamp": "2025-03-20T03:00:10.192Z",
+    "eventDate": "2025-03-20T03:00:10.192Z"
+  },
+  {
+    "id": 6,
+    "type": "Astronomy",
+    "title": "Meteor Shower",
+    "description": "Starry shower across LA ",
+    "location": {
+      "lat": 34.0576949415459,
+      "lng": -118.29082489013673
+    },
+    "imageUrl": "/uploads/1742448281746-419300383.jpeg",
+    "timestamp": "2025-03-20T05:24:41.749Z",
+    "eventDate": "2025-03-20T05:24:41.749Z"
+  },
+  {
+    "id": 7,
+    "type": "Ocean",
+    "title": "Jellyfish on Beach",
+    "description": "Saw jellyfish washed up on the beach by Marina Del Rey ",
+    "location": {
+      "lat": 33.9679930610594,
+      "lng": -118.46205711364748
+    },
+    "imageUrl": "/uploads/1743298579228-931834033.jpg",
+    "eventDate": "2025-03-30T01:36:19.230Z",
+    "timestamp": "2025-03-30T01:36:19.230Z"
+  },
+  {
+    "id": 8,
+    "type": "Ocean",
+    "title": "Jellyfish",
+    "description": "Jellyfish washed up on MDR beach",
+    "location": {
+      "lat": 33.96628463590905,
+      "lng": -118.46265792846681
+    },
+    "imageUrl": "/uploads/1743298621904-877263050.jpg",
+    "eventDate": "2025-03-30T01:37:01.905Z",
+    "timestamp": "2025-03-30T01:37:01.905Z"
+  }
+]

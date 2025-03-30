@@ -1,0 +1,1898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nature Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDK -->
+    <script type="module" src="js/firebase-init.js"></script>
+    <style>
+        /* Modern CSS Reset */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Modern Color System */
+            --primary-color: #2B4C34;
+            --primary-light: #3d6a49;
+            --primary-dark: #1a2e20;
+            
+            /* Background System */
+            --background-color: #F5F7F2;
+            --background-darker: #E8EDE4;
+            --background-lightest: #FAFBF8;
+            --surface-color: #FFFFFF;
+            --glass-bg: rgba(255, 255, 255, 0.8);
+            
+            /* Gradient Backgrounds */
+            --gradient-wildlife: linear-gradient(135deg, #F59E0B, #D97706);
+            --gradient-ocean: linear-gradient(135deg, #3B82F6, #2563EB);
+            --gradient-plant: linear-gradient(135deg, #059669, #047857);
+            --gradient-astronomy: linear-gradient(135deg, #6366F1, #4F46E5);
+            --gradient-hazard: linear-gradient(135deg, #EF4444, #DC2626);
+            
+            /* Glass Effect */
+            --glass-border: 1px solid rgba(255, 255, 255, 0.2);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+            --glass-backdrop: blur(8px);
+            
+            /* Text Colors */
+            --text-primary: #1B2F21;
+            --text-secondary: #3D4A42;
+            --text-muted: #6B7280;
+            
+            /* Accent Colors */
+            --accent-blue: #3B82F6;
+            --accent-green: #34D399;
+            --accent-yellow: #FBBF24;
+            
+            /* Category Colors - With Opacity Variants */
+            --wildlife-color: #F59E0B;
+            --wildlife-color-light: rgba(245, 158, 11, 0.1);
+            --ocean-color: #3B82F6;
+            --ocean-color-light: rgba(59, 130, 246, 0.1);
+            --plant-color: #059669;
+            --plant-color-light: rgba(5, 150, 105, 0.1);
+            --astronomy-color: #6366F1;
+            --astronomy-color-light: rgba(99, 102, 241, 0.1);
+            --hazard-color: #EF4444;
+            --hazard-color-light: rgba(239, 68, 68, 0.1);
+            
+            /* Modern Shadow System */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            
+            /* Modern Spacing System */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+            
+            /* Animation */
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+            
+            /* Border Radius */
+            --radius-sm: 0.25rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 1rem;
+            --radius-full: 9999px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Modern Typography */
+        h1, h2, h3, h4, h5, h6 {
+            line-height: 1.2;
+            font-weight: 600;
+            margin-bottom: var(--spacing-md);
+        }
+
+        h1 { font-size: 2.5rem; }
+        h2 { font-size: 2rem; }
+        h3 { font-size: 1.75rem; }
+        h4 { font-size: 1.5rem; }
+        h5 { font-size: 1.25rem; }
+        h6 { font-size: 1rem; }
+
+        /* Modern Button Styles */
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1.25rem;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            transition: var(--transition-normal);
+            border: none;
+            cursor: pointer;
+            background-color: var(--primary-color);
+            color: white;
+            gap: 0.5rem;
+        }
+
+        .button:hover {
+            background-color: var(--primary-light);
+            transform: translateY(-1px);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        /* Modern Card Styles */
+        .card {
+            background: var(--surface-color);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            box-shadow: var(--shadow-md);
+            transition: var(--transition-normal);
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+
+        /* Modern Input Styles */
+        .input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background-color: var(--background-lightest);
+            transition: var(--transition-normal);
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(43, 76, 52, 0.1);
+        }
+
+        /* Modern Layout Utilities */
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-md);
+        }
+
+        .grid {
+            display: grid;
+            gap: var(--spacing-md);
+        }
+
+        .flex {
+            display: flex;
+            gap: var(--spacing-md);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 var(--spacing-sm);
+            }
+            
+            h1 { font-size: 2rem; }
+            h2 { font-size: 1.75rem; }
+            h3 { font-size: 1.5rem; }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Animation Classes */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { 
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 32px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border-bottom: var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .location {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            transition: all 0.3s ease;
+        }
+
+        .location:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .location i {
+            color: var(--text-primary);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 24px;
+            font-weight: 500;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .brand i {
+            color: var(--text-primary);
+        }
+
+        .brand-pin {
+            font-size: 24px;
+            -webkit-text-fill-color: initial;
+            transform: translateY(-1px);
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .action-button {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: var(--glass-border);
+            cursor: pointer;
+            padding: 12px;
+            color: var(--text-primary);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+        }
+
+        .action-button i {
+            font-size: 18px;
+        }
+
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+            background: var(--primary-light);
+            color: white;
+        }
+
+        .add-event {
+            background: var(--gradient-wildlife);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-md);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 14px;
+            margin: 12px 0;
+        }
+
+        .add-event:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .search-container {
+            padding: 24px 32px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border-bottom: var(--glass-border);
+            box-shadow: var(--glass-shadow);
+        }
+
+        .search-bar {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 16px 24px;
+            border: var(--glass-border);
+            border-radius: 16px;
+            font-size: 16px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .search-bar input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .filters {
+            max-width: 800px;
+            margin: 20px auto 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .event-type-toggle {
+            display: flex;
+            gap: 2px;
+            background: var(--glass-bg);
+            padding: 2px;
+            border-radius: 8px;
+            border: var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            position: relative;
+            min-width: 160px;
+            margin: 16px 0;
+        }
+
+        .toggle-button {
+            flex: 1;
+            padding: 6px 16px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .toggle-button.active {
+            background: var(--primary-light);
+            color: white;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .toggle-button:not(.active):hover {
+            background: var(--glass-bg);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 40px;
+            padding: 0 32px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border-bottom: var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            justify-content: space-between;
+            position: sticky;
+            top: 80px;
+            z-index: 900;
+        }
+
+        .tabs-left {
+            display: flex;
+            gap: 40px;
+        }
+
+        .tab {
+            padding: 16px 0;
+            color: var(--text-primary);
+            cursor: pointer;
+            position: relative;
+            font-weight: 500;
+            opacity: 0.85;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab i {
+            font-size: 14px;
+        }
+
+        .tab:hover {
+            opacity: 1;
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--primary-color);
+            opacity: 1;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient-ocean);
+            border-radius: 3px;
+        }
+
+        .tab-count {
+            display: inline-block;
+            background-color: var(--background-darker);
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 8px;
+            font-weight: 500;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+            padding: 24px;
+            height: calc(100vh - 224px);
+            background-color: var(--background-color);
+        }
+
+        #map {
+            height: 100%;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: var(--glass-shadow);
+        }
+
+        .feed {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: var(--glass-border);
+            border-radius: 24px;
+            overflow-y: auto;
+            box-shadow: var(--glass-shadow);
+            height: 100%;
+            max-height: calc(100vh - 224px);
+            padding: 8px;
+        }
+
+        .feed-item {
+            padding: 24px;
+            margin: 8px;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 16px;
+            background: var(--surface-color);
+            box-shadow: var(--shadow-md);
+            position: relative;
+        }
+
+        .feed-item:not(:last-child) {
+            margin-bottom: 16px;
+        }
+
+        .feed-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .feed-image {
+            width: 80px;
+            height: 80px;
+            border-radius: 16px;
+            object-fit: cover;
+            box-shadow: var(--shadow-md);
+        }
+
+        .feed-content {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .feed-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .feed-type {
+            font-size: 13px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .feed-type.wildlife { 
+            background: var(--gradient-wildlife);
+            color: white;
+        }
+        .feed-type.ocean { 
+            background: var(--gradient-ocean);
+            color: white;
+        }
+        .feed-type.plant { 
+            background: var(--gradient-plant);
+            color: white;
+        }
+        .feed-type.astronomy { 
+            background: var(--gradient-astronomy);
+            color: white;
+        }
+        .feed-type.hazard { 
+            background: var(--gradient-hazard);
+            color: white;
+        }
+
+        .feed-time {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .feed-item h3 {
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 18px;
+            margin: 0;
+            letter-spacing: -0.3px;
+        }
+
+        .feed-item p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .feed-location {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-muted);
+            padding: 4px 12px;
+            background: var(--background-darker);
+            border-radius: 20px;
+            margin-top: 8px;
+        }
+
+        .feed-location i {
+            font-size: 12px;
+        }
+
+        select {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--background-lightest);
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--accent-green);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .custom-marker {
+            transition: var(--transition);
+        }
+
+        .custom-marker:hover {
+            transform: scale(1.1);
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        .leaflet-popup-content {
+            margin: 8px 12px;
+        }
+
+        .leaflet-popup-content h3 {
+            color: var(--text-primary);
+            margin: 0 0 4px 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .leaflet-popup-content p {
+            color: var(--text-secondary);
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .time-filter {
+            margin-left: 16px;
+            padding: 8px 16px;
+            border: var(--glass-border);
+            border-radius: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .time-filter:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Custom Scrollbar */
+        .feed::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .feed::-webkit-scrollbar-track {
+            background: var(--background-lightest);
+            border-radius: 4px;
+            margin: 8px 0;
+        }
+
+        .feed::-webkit-scrollbar-thumb {
+            background: var(--primary-light);
+            border-radius: 4px;
+        }
+
+        .feed::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-color);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                padding: 0 16px;
+            }
+
+            .feed {
+                height: 400px;
+                overflow-y: auto;
+            }
+        }
+
+        .bookmark-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-top: 16px;
+        }
+
+        .bookmark-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .bookmark-button:hover {
+            color: var(--primary-color);
+            background: var(--background-darker);
+        }
+
+        .bookmark-button i {
+            font-size: 14px;
+        }
+
+        .bookmark-button.active {
+            color: var(--primary-color);
+        }
+
+        .bookmark-button.active i {
+            font-weight: 900;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: var(--background-color);
+            border-radius: 24px;
+            padding: 40px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal.show .modal-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .modal-header {
+            margin-bottom: 32px;
+        }
+
+        .modal-header h2 {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+        }
+
+        .close-modal {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .close-modal:hover {
+            background: var(--background-darker);
+            color: var(--text-primary);
+            transform: rotate(90deg);
+        }
+
+        /* Scrollbar styles for modal */
+        .modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .modal-content::-webkit-scrollbar-track {
+            background: var(--background-lightest);
+            border-radius: 4px;
+        }
+
+        .modal-content::-webkit-scrollbar-thumb {
+            background: var(--primary-light);
+            border-radius: 4px;
+        }
+
+        .modal-content::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-color);
+        }
+
+        /* Form and Modal Specific Styles */
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .form-group input[type="text"],
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: var(--glass-border);
+            border-radius: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            color: var(--text-primary);
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group textarea {
+            height: 120px;
+            resize: vertical;
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+
+        .form-group select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 48px;
+        }
+
+        /* Event Type Select Styling */
+        #eventType {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        #eventType::before {
+            content: '';
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-family: "Font Awesome 5 Free";
+            font-weight: 900;
+            font-size: 16px;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        #eventType[value="Ocean"]::before {
+            content: "\f773"; /* fa-water */
+            color: var(--ocean-color);
+        }
+
+        #eventType[value="Wildlife"]::before {
+            content: "\f1b0"; /* fa-paw */
+            color: var(--wildlife-color);
+        }
+
+        #eventType[value="Plant"]::before {
+            content: "\f06c"; /* fa-leaf */
+            color: var(--plant-color);
+        }
+
+        #eventType[value="Astronomy"]::before {
+            content: "\f005"; /* fa-star */
+            color: var(--astronomy-color);
+        }
+
+        #eventType option {
+            padding: 12px;
+            font-size: 16px;
+        }
+
+        /* Style the select when an option is selected */
+        #eventType:not([value=""]) {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        #eventType option:first-child {
+            color: var(--text-muted);
+            font-weight: normal;
+        }
+
+        .image-upload {
+            border: 2px dashed var(--primary-light);
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            position: relative;
+        }
+
+        .image-upload:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .image-upload input[type="file"] {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .image-upload i {
+            font-size: 48px;
+            color: var(--primary-light);
+            margin-bottom: 16px;
+        }
+
+        .image-upload p {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .image-preview {
+            display: none;
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            margin-top: 16px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .location-picker {
+            height: 300px;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 8px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .error-message {
+            display: none;
+            color: var(--hazard-color);
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .submit-button {
+            background: var(--gradient-wildlife);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 32px;
+            width: 100%;
+            justify-content: center;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .submit-button:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .success-message {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--gradient-plant);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 2000;
+        }
+
+        .success-message.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Responsive Design for Modal */
+        @media (max-width: 768px) {
+            .modal-content {
+                padding: 24px;
+                width: 95%;
+            }
+
+            .modal-header h2 {
+                font-size: 24px;
+            }
+
+            .form-group input[type="text"],
+            .form-group textarea,
+            .form-group select {
+                font-size: 16px;
+            }
+
+            .location-picker {
+                height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="top-header">
+        <div class="location">
+            <i class="fas fa-map-marker-alt"></i>
+            Southern California
+        </div>
+        <a href="/" class="brand">
+            <span class="brand-pin">📍</span>
+            Nature Tracker
+        </a>
+        <div class="actions">
+            <a href="/" class="action-button active">
+                <i class="fas fa-map"></i>
+            </a>
+            <a href="/bookmarks.html" class="action-button">
+                <i class="fas fa-bookmark"></i>
+            </a>
+            <a href="/notifications.html" class="action-button">
+                <i class="fas fa-bell"></i>
+            </a>
+            <a href="/profile.html" class="action-button">
+                <i class="fas fa-user"></i>
+            </a>
+        </div>
+    </header>
+
+    <div class="search-container">
+        <div class="search-bar">
+            <input type="text" placeholder="Search events by location or type...">
+        </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tabs-left">
+            <div class="tab active">
+                All Events
+                <select class="time-filter">
+                    <option value="1day">1 Day</option>
+                    <option value="1week">1 Week</option>
+                    <option value="1month" selected>1 Month</option>
+                    <option value="all">All Time</option>
+                </select>
+            </div>
+            <div class="tab"><i class="fas fa-water"></i> Ocean</div>
+            <div class="tab"><i class="fas fa-paw"></i> Wildlife</div>
+            <div class="tab"><i class="fas fa-leaf"></i> Plant</div>
+            <div class="tab"><i class="fas fa-star"></i> Astronomy</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <div class="event-type-toggle">
+                <button class="toggle-button active" data-event-type="current">Current</button>
+                <button class="toggle-button" data-event-type="upcoming">Upcoming</button>
+            </div>
+            <button class="add-event" id="openAddEventModal">
+                <i class="fas fa-camera"></i>
+                Add Event
+            </button>
+        </div>
+    </div>
+
+    <!-- Add Event Modal -->
+    <div id="addEventModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Event</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="eventForm">
+                <div class="form-group">
+                    <label for="eventType">Event Type</label>
+                    <select id="eventType" name="type" required>
+                        <option value="">Select type...</option>
+                        <option value="Ocean">Ocean</option>
+                        <option value="Wildlife">Wildlife</option>
+                        <option value="Plant">Plants</option>
+                        <option value="Astronomy">Astronomy</option>
+                    </select>
+                    <div class="error-message" id="typeError"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="eventTitle">Title</label>
+                    <input type="text" id="eventTitle" name="title" required placeholder="Enter a descriptive title">
+                    <div class="error-message" id="titleError"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="eventDescription">Description</label>
+                    <textarea id="eventDescription" name="description" required placeholder="Describe what you observed..."></textarea>
+                    <div class="error-message" id="descriptionError"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Photo</label>
+                    <div class="image-upload" id="imageUpload">
+                        <input type="file" accept="image/*" id="eventImage" name="image" required>
+                        <i class="fas fa-camera"></i>
+                        <p>Click or drag to upload photo</p>
+                        <img id="imagePreview" class="image-preview">
+                    </div>
+                    <div class="error-message" id="imageError"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Location</label>
+                    <p style="margin-bottom: 8px; color: var(--text-muted); font-size: 14px;">
+                        Click on the map to set the location
+                    </p>
+                    <div id="modalLocationPicker" class="location-picker"></div>
+                    <input type="hidden" id="eventLat" name="lat" required>
+                    <input type="hidden" id="eventLng" name="lng" required>
+                    <div class="error-message" id="locationError"></div>
+                </div>
+
+                <button type="submit" class="submit-button">
+                    <i class="fas fa-plus"></i>
+                    Add Event
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="success-message" id="successMessage">
+        Event added successfully!
+    </div>
+
+    <div class="content">
+        <div id="map"></div>
+        <div class="feed">
+            <div class="feed-item">
+                <img src="https://images.pexels.com/photos/35435/pexels-photo.jpg" alt="Black Bear" class="feed-image">
+                <div class="feed-content">
+                    <div class="feed-meta">
+                        <span class="feed-type wildlife">Wildlife Sighting</span>
+                        <span class="feed-time">10 mins ago</span>
+                    </div>
+                    <h3>Bear Sighting</h3>
+                    <p>Black bear spotted near hiking trail</p>
+                    <div class="feed-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Angeles National Forest</span>
+                    </div>
+                </div>
+            </div>
+            <div class="feed-item">
+                <img src="https://images.pexels.com/photos/2422915/pexels-photo-2422915.jpeg" alt="Golden Eagle" class="feed-image">
+                <div class="feed-content">
+                    <div class="feed-meta">
+                        <span class="feed-type wildlife">Wildlife Sighting</span>
+                        <span class="feed-time">25 mins ago</span>
+                    </div>
+                    <h3>Rare Bird Spotted</h3>
+                    <p>Golden Eagle sighting at Mountain Peak</p>
+                    <div class="feed-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>San Gabriel Mountains</span>
+                    </div>
+                </div>
+            </div>
+            <div class="feed-item">
+                <img src="https://images.pexels.com/photos/225869/pexels-photo-225869.jpeg" alt="Dolphins" class="feed-image">
+                <div class="feed-content">
+                    <div class="feed-meta">
+                        <span class="feed-type ocean">Ocean Life</span>
+                        <span class="feed-time">1 hour ago</span>
+                    </div>
+                    <h3>Dolphin Pod Sighting</h3>
+                    <p>Large pod of dolphins spotted near the coast</p>
+                    <div class="feed-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Santa Monica Bay</span>
+                    </div>
+                </div>
+            </div>
+            <div class="feed-item">
+                <img src="https://images.pexels.com/photos/5117913/pexels-photo-5117913.jpeg" alt="Forest Trail" class="feed-image">
+                <div class="feed-content">
+                    <div class="feed-meta">
+                        <span class="feed-type hazard">Trail Alert</span>
+                        <span class="feed-time">45 mins ago</span>
+                    </div>
+                    <h3>Trail Condition Alert</h3>
+                    <p>Fallen tree blocking north trail</p>
+                    <div class="feed-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Griffith Park</span>
+                    </div>
+                </div>
+            </div>
+            <div class="feed-item">
+                <img src="https://images.pexels.com/photos/631477/pexels-photo-631477.jpeg" alt="Night Sky" class="feed-image">
+                <div class="feed-content">
+                    <div class="feed-meta">
+                        <span class="feed-type astronomy">Astronomy</span>
+                        <span class="feed-time">2 hours ago</span>
+                    </div>
+                    <h3>Meteor Shower Tonight</h3>
+                    <p>Perfect viewing conditions expected</p>
+                    <div class="feed-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Mount Wilson</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module">
+        import bookmarkManager from './js/bookmarks.js';
+        
+        // Initialize the map
+        const map = L.map('map').setView([34.0522, -118.2437], 11);
+
+        // Add a clean, minimal tile layer
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '©OpenStreetMap, ©CartoDB',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Check if we need to focus on a specific location (coming from bookmarks)
+        const savedLocation = sessionStorage.getItem('view_location');
+        if (savedLocation) {
+            const { lat, lng } = JSON.parse(savedLocation);
+            map.setView([lat, lng], 15);
+            // Clear the saved location
+            sessionStorage.removeItem('view_location');
+        }
+
+        // Create custom icons for different event types
+        const createCustomIcon = (type) => {
+            let color;
+            switch(type.toLowerCase()) {
+                case 'wildlife':
+                    color = '#F59E0B'; // wildlife-color
+                    break;
+                case 'ocean':
+                    color = '#3B82F6'; // ocean-color
+                    break;
+                case 'plant':
+                    color = '#10B981'; // plant-color
+                    break;
+                case 'astronomy':
+                    color = '#6366F1'; // astronomy-color
+                    break;
+                case 'hazards':
+                    color = '#EF4444'; // hazard-color
+                    break;
+                default:
+                    color = '#1B2F21'; // dark-green
+            }
+            
+            return L.divIcon({
+                className: 'custom-marker',
+                html: `<i class="fas fa-map-marker-alt" style="color: ${color}; font-size: 28px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));"></i>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 28],
+                popupAnchor: [0, -20]
+            });
+        };
+
+        // Object to store markers by ID for easy access
+        let markersByEventId = {};
+
+        // Make loadAndDisplayEvents available globally
+        window.loadAndDisplayEvents = async function(type = null, eventType = 'current', timeFilter = null) {
+            try {
+                const queryParams = new URLSearchParams();
+                if (type) queryParams.append('type', type);
+                if (eventType) queryParams.append('eventType', eventType);
+                if (timeFilter) queryParams.append('timeFilter', timeFilter);
+                
+                console.log('Loading events with filters:', { type, eventType, timeFilter }); // Debug log
+                const response = await fetch(`/api/incidents?${queryParams.toString()}`);
+                const events = await response.json();
+
+                // Clear existing markers
+                Object.values(markersByEventId).forEach(marker => marker.remove());
+                markersByEventId = {};
+
+                const feedContainer = document.querySelector('.feed');
+                feedContainer.innerHTML = '';
+
+                if (!events || events.length === 0) {
+                    feedContainer.innerHTML = `
+                        <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                            <i class="fas fa-info-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
+                            <p>No ${eventType} events found${type ? ` for ${type}` : ''}${timeFilter ? ` in the last ${timeFilter === '1day' ? '24 hours' : timeFilter === '1week' ? 'week' : timeFilter === '1month' ? 'month' : ''}` : ''}.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Add markers and feed items for each event
+                events.forEach(event => {
+                    // Add debug logging
+                    console.log('Event data:', {
+                        title: event.title,
+                        eventDate: event.eventDate,
+                        rawDate: new Date(event.eventDate)
+                    });
+                    
+                    // Add marker to map
+                    const marker = L.marker([event.location.lat, event.location.lng], { 
+                        icon: createCustomIcon(event.type)
+                    }).addTo(map);
+
+                    // Store marker reference by event ID
+                    markersByEventId[event.id] = marker;
+
+                    // Create and bind a popup with more information
+                    marker.bindPopup(`
+                        <h3>${event.title}</h3>
+                        <p>${event.type}</p>
+                        <p style="font-size: 12px; margin-top: 4px; opacity: 0.7;">
+                            <i class="fas fa-map-marker-alt" style="font-size: 10px;"></i> 
+                            ${event.description}
+                        </p>
+                    `);
+
+                    // Add feed item
+                    const feedItem = document.createElement('div');
+                    feedItem.className = 'feed-item';
+                    
+                    // Determine if the event is in the future relative to the real-world current date
+                    const eventTime = new Date(event.eventDate);
+                    const now = new Date(); // Use actual real-world current date
+                    const isFutureEvent = eventTime > now;
+                    
+                    // Calculate time difference
+                    const diffInDays = Math.floor((now - eventTime) / (1000 * 60 * 60 * 24));
+                    
+                    // Format the date display
+                    let dateDisplay;
+                    if (isFutureEvent) {
+                        dateDisplay = `Coming ${eventTime.toLocaleDateString('en-US', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            year: '2-digit'
+                        })}`;
+                    } else if (diffInDays === 0) {
+                        dateDisplay = 'Today';
+                    } else if (diffInDays === 1) {
+                        dateDisplay = 'Yesterday';
+                    } else if (diffInDays < 7) {
+                        dateDisplay = `${diffInDays} days ago`;
+                    } else if (diffInDays < 30) {
+                        const weeks = Math.floor(diffInDays / 7);
+                        dateDisplay = weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+                    } else {
+                        dateDisplay = eventTime.toLocaleDateString('en-US', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            year: '2-digit'
+                        });
+                    }
+                    
+                    feedItem.innerHTML = `
+                        <img src="${event.imageUrl}" alt="${event.title}" class="feed-image">
+                        <div class="feed-content">
+                            <div class="feed-meta">
+                                <span class="feed-type ${event.type.toLowerCase()}">${event.type}</span>
+                                <span class="feed-time">${dateDisplay}</span>
+                            </div>
+                            <h3>${event.title}</h3>
+                            <p>${event.description}</p>
+                            <div class="feed-location">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>${event.description}</span>
+                            </div>
+                            <div class="bookmark-actions">
+                                <button class="bookmark-button">
+                                    <i class="fas fa-bookmark"></i>
+                                    Bookmark
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    // Add hover effects for the feed item
+                    feedItem.addEventListener('mouseenter', () => {
+                        highlightMarker(marker);
+                        map.panTo(marker.getLatLng());
+                    });
+
+                    feedItem.addEventListener('mouseleave', () => {
+                        unhighlightMarker(marker);
+                    });
+
+                    // Add bookmark functionality
+                    const bookmarkButton = feedItem.querySelector('.bookmark-button');
+                    const itemId = `event-${event.id}`;
+                    
+                    if (bookmarkManager.isBookmarked(itemId)) {
+                        bookmarkButton.innerHTML = '<i class="fas fa-bookmark"></i> Bookmarked';
+                        bookmarkButton.classList.add('active');
+                    }
+
+                    bookmarkButton.addEventListener('click', () => {
+                        const isCurrentlyBookmarked = bookmarkManager.isBookmarked(itemId);
+                        
+                        if (isCurrentlyBookmarked) {
+                            bookmarkManager.removeBookmark(itemId);
+                            bookmarkButton.innerHTML = '<i class="fas fa-bookmark"></i> Bookmark';
+                            bookmarkButton.classList.remove('active');
+                            // Add animation
+                            bookmarkButton.style.transform = 'scale(0.95)';
+                            setTimeout(() => {
+                                bookmarkButton.style.transform = 'scale(1)';
+                            }, 100);
+                        } else {
+                            bookmarkManager.addBookmark({
+                                id: itemId,
+                                title: event.title,
+                                type: event.type,
+                                description: event.description,
+                                imageUrl: event.imageUrl,
+                                coordinates: marker.getLatLng()
+                            });
+                            bookmarkButton.innerHTML = '<i class="fas fa-bookmark"></i> Bookmarked';
+                            bookmarkButton.classList.add('active');
+                            // Add animation
+                            bookmarkButton.style.transform = 'scale(1.05)';
+                            setTimeout(() => {
+                                bookmarkButton.style.transform = 'scale(1)';
+                            }, 100);
+                        }
+                    });
+
+                    feedContainer.appendChild(feedItem);
+                });
+            } catch (error) {
+                console.error('Error loading events:', error);
+            }
+        };
+
+        // Helper function to format relative time
+        function getRelativeTime(eventDate) {
+            if (!eventDate) {
+                return 'Recently';
+            }
+            
+            const now = new Date();
+            const eventTime = new Date(eventDate);
+            
+            // Check if the date is valid
+            if (isNaN(eventTime.getTime())) {
+                return 'Recently';
+            }
+
+            const diffInMilliseconds = now - eventTime;
+            const diffInSeconds = Math.floor(diffInMilliseconds / 1000);
+            const diffInMinutes = Math.floor(diffInSeconds / 60);
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            const diffInDays = Math.floor(diffInHours / 24);
+
+            // Format the date as MM/DD/YY
+            function formatDate(date) {
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const day = date.getDate().toString().padStart(2, '0');
+                const year = date.getFullYear().toString().slice(-2);
+                return `${month}/${day}/${year}`;
+            }
+
+            // For future dates, show the actual date
+            if (diffInMilliseconds < 0) {
+                return `Coming ${formatDate(eventTime)}`;
+            }
+
+            // For past dates within the last week, show relative time
+            if (diffInMinutes < 60) {
+                return diffInMinutes <= 1 ? 'Just now' : `${diffInMinutes} mins ago`;
+            } else if (diffInHours < 24) {
+                return diffInHours === 1 ? '1 hour ago' : `${diffInHours} hours ago`;
+            } else if (diffInDays < 7) {
+                return diffInDays === 1 ? 'Yesterday' : `${diffInDays} days ago`;
+            } else {
+                return formatDate(eventTime);
+            }
+        }
+
+        // Initial load of events
+        const initialTimeFilter = document.querySelector('.time-filter').value;
+        loadAndDisplayEvents(null, 'current', initialTimeFilter);
+
+        // Function to highlight a marker
+        function highlightMarker(marker) {
+            const iconElement = marker.getElement().querySelector('.fa-map-marker-alt');
+            if (iconElement) {
+                iconElement.style.transform = 'scale(1.3)';
+                iconElement.style.filter = 'drop-shadow(0 3px 3px rgba(0,0,0,0.3))';
+                iconElement.style.transition = 'all 0.3s ease';
+            }
+        }
+
+        // Function to unhighlight a marker
+        function unhighlightMarker(marker) {
+            const iconElement = marker.getElement().querySelector('.fa-map-marker-alt');
+            if (iconElement) {
+                iconElement.style.transform = 'scale(1)';
+                iconElement.style.filter = 'drop-shadow(0 2px 2px rgba(0,0,0,0.2))';
+            }
+        }
+
+        // Add zoom control to the top-right
+        map.zoomControl.setPosition('topright');
+
+        // Add time filter functionality
+        const timeFilterSelect = document.querySelector('.time-filter');
+        if (timeFilterSelect) {
+            timeFilterSelect.addEventListener('change', function(e) {
+                console.log('Time filter changed:', e.target.value); // Debug log
+                
+                const timeFilter = e.target.value;
+                const activeTab = document.querySelector('.tab.active');
+                let type = null;
+                
+                if (!activeTab.textContent.includes('All Events')) {
+                    type = activeTab.textContent.replace(/[^\w\s]/g, '').trim();
+                }
+                
+                // Call loadAndDisplayEvents with all current filters
+                loadAndDisplayEvents(type, 'current', timeFilter);
+            });
+        }
+
+        // Add click handler for tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                // Don't trigger if clicking the time filter dropdown
+                if (e.target.classList.contains('time-filter')) {
+                    return;
+                }
+                
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Get the event type from the tab text
+                let type = tab.textContent.trim();
+                
+                // Get current time filter value
+                const timeFilter = document.querySelector('.time-filter').value;
+                
+                // Call loadAndDisplayEvents with all current filters
+                loadAndDisplayEvents(type, 'current', timeFilter);
+            });
+        });
+
+        // Add search functionality
+        const searchInput = document.querySelector('.search-bar input');
+        let searchTimeout;
+
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const searchTerm = e.target.value.toLowerCase();
+                const feedItems = document.querySelectorAll('.feed-item');
+                
+                feedItems.forEach(item => {
+                    const title = item.querySelector('h3').textContent.toLowerCase();
+                    const description = item.querySelector('p').textContent.toLowerCase();
+                    const type = item.querySelector('.feed-type').textContent.toLowerCase();
+                    
+                    if (title.includes(searchTerm) || 
+                        description.includes(searchTerm) || 
+                        type.includes(searchTerm)) {
+                        item.style.display = 'grid';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            }, 300);
+        });
+
+        // Modal functionality
+        const modal = document.getElementById('addEventModal');
+        const openModalBtn = document.getElementById('openAddEventModal');
+        const closeModalBtn = document.querySelector('.close-modal');
+        let modalMap = null;
+
+        function openModal() {
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+            
+            // Initialize modal map after modal is visible
+            setTimeout(() => {
+                if (!modalMap) {
+                    modalMap = L.map('modalLocationPicker').setView([34.0522, -118.2437], 11);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                        attribution: '©OpenStreetMap, ©CartoDB',
+                        subdomains: 'abcd',
+                        maxZoom: 19
+                    }).addTo(modalMap);
+
+                    let modalMarker = null;
+                    modalMap.on('click', (e) => {
+                        const { lat, lng } = e.latlng;
+                        document.getElementById('eventLat').value = lat;
+                        document.getElementById('eventLng').value = lng;
+                        
+                        if (modalMarker) {
+                            modalMarker.setLatLng(e.latlng);
+                        } else {
+                            modalMarker = L.marker(e.latlng).addTo(modalMap);
+                        }
+                    });
+                }
+                modalMap.invalidateSize();
+            }, 100);
+        }
+
+        function closeModal() {
+            modal.classList.remove('show');
+            document.body.style.overflow = 'auto';
+        }
+
+        openModalBtn.addEventListener('click', openModal);
+        closeModalBtn.addEventListener('click', closeModal);
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Add event type icon to selected option
+        const eventTypeSelect = document.getElementById('eventType');
+        eventTypeSelect.addEventListener('change', function() {
+            // The select styling is now handled by CSS, so we don't need to modify the HTML
+            this.setAttribute('value', this.value);
+        });
+
+        // Handle form submission
+        const eventForm = document.getElementById('eventForm');
+        const successMessage = document.getElementById('successMessage');
+
+        eventForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Reset error messages
+            document.querySelectorAll('.error-message').forEach(el => {
+                el.textContent = '';
+                el.style.display = 'none';
+            });
+            
+            let isValid = true;
+            
+            if (!eventForm.type.value) {
+                document.getElementById('typeError').textContent = 'Please select an event type';
+                document.getElementById('typeError').style.display = 'block';
+                isValid = false;
+            }
+            
+            if (!eventForm.title.value.trim()) {
+                document.getElementById('titleError').textContent = 'Please enter a title';
+                document.getElementById('titleError').style.display = 'block';
+                isValid = false;
+            }
+            
+            if (!eventForm.description.value.trim()) {
+                document.getElementById('descriptionError').textContent = 'Please enter a description';
+                document.getElementById('descriptionError').style.display = 'block';
+                isValid = false;
+            }
+            
+            if (!eventForm.image.files[0]) {
+                document.getElementById('imageError').textContent = 'Please upload an image';
+                document.getElementById('imageError').style.display = 'block';
+                isValid = false;
+            } else {
+                const file = eventForm.image.files[0];
+                const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+                if (!validTypes.includes(file.type)) {
+                    document.getElementById('imageError').textContent = 'Please upload a valid image file (JPEG, PNG, or GIF)';
+                    document.getElementById('imageError').style.display = 'block';
+                    isValid = false;
+                }
+            }
+            
+            if (!eventForm.lat.value || !eventForm.lng.value) {
+                document.getElementById('locationError').textContent = 'Please select a location on the map';
+                document.getElementById('locationError').style.display = 'block';
+                isValid = false;
+            }
+            
+            if (!isValid) return;
+
+            try {
+                // Create FormData object
+                const formData = new FormData();
+                formData.append('type', eventForm.type.value);
+                formData.append('title', eventForm.title.value);
+                formData.append('description', eventForm.description.value);
+                formData.append('image', eventForm.image.files[0]);
+                formData.append('lat', eventForm.lat.value);
+                formData.append('lng', eventForm.lng.value);
+                // Add admin status (you'll need to implement proper admin authentication)
+                formData.append('isAdmin', false); // Replace with actual admin status
+
+                const response = await fetch('/api/incidents', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to create event');
+                }
+
+                // Clear form and close modal
+                eventForm.reset();
+                closeModal();
+                
+                // Reload events with current filter
+                loadAndDisplayEvents();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert(error.message || 'Failed to create event. Please try again.');
+            }
+        });
+
+        // Handle image upload preview
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const imageInput = document.getElementById('eventImage');
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        let currentEventType = 'current';
+
+        // Add event listeners for toggle buttons
+        document.querySelectorAll('.toggle-button').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.toggle-button').forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                currentEventType = button.dataset.eventType;
+                
+                // Get current time filter and type
+                const timeFilter = document.querySelector('.time-filter').value;
+                const activeTab = document.querySelector('.tab.active');
+                let type = null;
+                
+                if (!activeTab.textContent.includes('All Events')) {
+                    type = activeTab.textContent.replace(/[^\w\s]/g, '').trim();
+                }
+                
+                // Call loadAndDisplayEvents with all current filters
+                loadAndDisplayEvents(type, currentEventType, timeFilter);
+            });
+        });
+    </script>
+</body>
+</html> 
