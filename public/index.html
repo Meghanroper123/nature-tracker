@@ -1414,7 +1414,8 @@
                 const feedContainer = document.querySelector('.feed');
                 feedContainer.innerHTML = '';
 
-                if (!events || events.length === 0) {
+                // Check if events is an array and not empty
+                if (!events || !Array.isArray(events) || events.length === 0) {
                     feedContainer.innerHTML = `
                         <div style="text-align: center; padding: 20px; color: var(--text-muted);">
                             <i class="fas fa-info-circle" style="font-size: 24px; margin-bottom: 10px;"></i>

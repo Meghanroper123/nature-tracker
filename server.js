@@ -150,18 +150,36 @@ app.get('/api/incidents', async (req, res) => {
             timeFilter
         };
         
+        // Explicitly handle validation errors
+        if (eventType && !['upcoming', 'current', 'all'].includes(eventType)) {
+            return res.status(400).json({ 
+                message: 'Invalid eventType parameter. Must be one of: upcoming, current, all',
+                error: 'VALIDATION_ERROR' 
+            });
+        }
+        
+        if (timeFilter && !['1day', '1week', '1month', 'all'].includes(timeFilter)) {
+            return res.status(400).json({ 
+                message: 'Invalid timeFilter parameter. Must be one of: 1day, 1week, 1month, all',
+                error: 'VALIDATION_ERROR' 
+            });
+        }
+        
         const incidents = await Incident.getAll(filters);
         
-        console.log('Final filtered incidents:', incidents.map(e => ({
+        // Ensure incidents is always an array
+        const incidentsArray = Array.isArray(incidents) ? incidents : [];
+        
+        console.log('Final filtered incidents:', incidentsArray.map(e => ({
             id: e.id,
             title: e.title,
             eventDate: e.eventDate
         })));
         
-        res.json(incidents);
+        res.json(incidentsArray);
     } catch (error) {
         console.error('Error fetching incidents:', error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 
