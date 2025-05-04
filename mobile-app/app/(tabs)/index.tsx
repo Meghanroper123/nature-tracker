@@ -19,6 +19,7 @@ type Incident = {
     lng: number;
   };
   date: string;
+  imageUrl?: string;
 };
 
 // Define marker colors for each type
@@ -423,54 +424,16 @@ export default function MapScreen() {
 
       let location = await Location.getCurrentPositionAsync({});
       setLocation(location);
-      
-      // Test data points
-      setIncidents([
-        {
-          id: 'test1',
-          type: 'OCEAN',
-          title: 'Bioluminescent Waves',
-          description: 'Bioluminescent waves spotted at Santa Monica Beach',
-          location: {
-            lat: 34.0089,
-            lng: -118.5000
-          },
-          date: '2023-07-01'
-        },
-        {
-          id: 'test2',
-          type: 'WILDLIFE',
-          title: 'Deer Sighting',
-          description: 'Family of deer spotted in Griffith Park',
-          location: {
-            lat: 34.1367,
-            lng: -118.2923
-          },
-          date: '2023-07-05'
-        },
-        {
-          id: 'test3',
-          type: 'BOTANICAL',
-          title: 'Rare Flower Bloom',
-          description: 'Rare California poppy bloom in Antelope Valley',
-          location: {
-            lat: 34.7125,
-            lng: -118.1944
-          },
-          date: '2023-07-10'
-        },
-        {
-          id: 'test4',
-          type: 'ASTRONOMY',
-          title: 'Meteor Shower Viewing',
-          description: 'Perfect viewing conditions for Perseid meteor shower',
-          location: {
-            lat: 34.2250,
-            lng: -118.0600
-          },
-          date: '2023-07-15'
-        }
-      ]);
+
+      // Fetch real incidents from backend
+      try {
+        const response = await fetch('http://192.168.50.2:3000/api/incidents');
+        const data = await response.json();
+        setIncidents(data);
+        setFilteredIncidents(data);
+      } catch (err) {
+        setErrorMsg('Failed to load incidents');
+      }
     })();
   }, []);
 
@@ -505,7 +468,7 @@ export default function MapScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      {errorMsg ? (
+      {errorMsg && incidents.length === 0 ? (
         <ThemedView style={styles.errorContainer}>
           <ThemedText style={styles.errorText}>{errorMsg}</ThemedText>
         </ThemedView>
@@ -581,6 +544,13 @@ export default function MapScreen() {
                     <View style={styles.calloutContainer}>
                       <View style={styles.calloutContent}>
                         <ThemedText style={styles.calloutTitle}>{incident.title}</ThemedText>
+                        {incident.imageUrl && (
+                          <Image
+                            source={{ uri: incident.imageUrl }}
+                            style={{ width: 180, height: 100, borderRadius: 8, marginBottom: 8 }}
+                            resizeMode="cover"
+                          />
+                        )}
                         <ThemedText style={styles.calloutDescription}>{incident.description}</ThemedText>
                         <View style={[styles.calloutTag, { backgroundColor: markerColors[incident.type as keyof typeof markerColors] || markerColors.default }]}>
                           <ThemedText style={styles.calloutTagText}>{incident.type}</ThemedText>
