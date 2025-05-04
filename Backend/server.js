@@ -48,10 +48,22 @@ const bucket = storage.bucket('nature-tracker-e4957.firebasestorage.app');
 // API Routes
 app.get('/api/sightings', async (req, res) => {
   try {
+    const { userId } = req.query;
     const sightingsRef = collection(db, 'sightings');
-    const q = query(sightingsRef, orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
     
+    let q;
+    if (userId) {
+      // Query for specific user's sightings
+      q = query(sightingsRef, 
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+    } else {
+      // Query for all sightings
+      q = query(sightingsRef, orderBy('createdAt', 'desc'));
+    }
+    
+    const querySnapshot = await getDocs(q);
     const sightings = [];
     querySnapshot.forEach((doc) => {
       sightings.push({ id: doc.id, ...doc.data() });
@@ -68,6 +80,7 @@ app.post('/api/incidents', upload.single('image'), async (req, res) => {
   console.log('Body:', req.body);
   console.log('File:', req.file);
   try {
+
     const { type, title, description, lat, lng, userId } = req.body;
     let imageUrl = null;
 
@@ -91,6 +104,7 @@ app.post('/api/incidents', upload.single('image'), async (req, res) => {
       imageUrl,
       userId: userId || null,
       timestamp: new Date().toISOString(),
+
     };
 
     const docRef = await addDoc(collection(db, 'incidents'), incidentData);

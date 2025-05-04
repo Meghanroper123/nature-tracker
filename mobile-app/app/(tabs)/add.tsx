@@ -9,6 +9,9 @@ import MapView, { Marker } from 'react-native-maps';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useAuth } from '@/contexts/AuthContext';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/services/firebase';
 
 type EventType = 'OCEAN' | 'WILDLIFE' | 'BOTANICAL' | 'ASTRONOMY';
 
@@ -183,6 +186,7 @@ export default function AddSightingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { user } = useAuth();
 
   const [formData, setFormData] = useState<FormData>({
     type: '',
@@ -272,14 +276,17 @@ export default function AddSightingScreen() {
   };
 
   const handleSubmit = async () => {
+
     if (!validateForm()) {
       setError('Please fill out all required fields and upload a photo.');
       return;
     }
+
     setLoading(true);
     setError(null);
 
     try {
+
       const form = new FormData();
       form.append('title', formData.title);
       form.append('description', formData.description || '');
@@ -314,6 +321,7 @@ export default function AddSightingScreen() {
       router.back();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save incident. Please try again.');
+
     } finally {
       setLoading(false);
     }
