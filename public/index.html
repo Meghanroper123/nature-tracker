@@ -244,15 +244,16 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 16px 32px;
+            padding: 8px 32px;
             background: var(--glass-bg);
             backdrop-filter: var(--glass-backdrop);
             -webkit-backdrop-filter: var(--glass-backdrop);
-            border-bottom: var(--glass-border);
-            box-shadow: var(--glass-shadow);
+            border-bottom: none;
+            box-shadow: none;
             position: sticky;
             top: 0;
             z-index: 1000;
+            height: 50px;
         }
 
         .location {
@@ -364,18 +365,20 @@
         }
 
         .search-container {
-            padding: 24px 32px;
+            padding: 0;
             background: var(--glass-bg);
             backdrop-filter: var(--glass-backdrop);
             -webkit-backdrop-filter: var(--glass-backdrop);
             border-bottom: var(--glass-border);
             box-shadow: var(--glass-shadow);
+            margin-top: -1px;
         }
 
         .search-bar {
             max-width: 800px;
             margin: 0 auto;
             position: relative;
+            padding: 8px 32px 0;
         }
 
         .search-bar input {
@@ -412,45 +415,38 @@
         .event-type-toggle {
             display: flex;
             gap: 2px;
-            background: var(--glass-bg);
+            background: var(--background-color);
             padding: 2px;
-            border-radius: 8px;
-            border: var(--glass-border);
-            box-shadow: var(--glass-shadow);
-            backdrop-filter: var(--glass-backdrop);
-            -webkit-backdrop-filter: var(--glass-backdrop);
+            border-radius: 24px;
+            border: 1px solid var(--primary-color);
+            box-shadow: var(--shadow-sm);
             position: relative;
-            min-width: 160px;
-            margin: 16px 0;
+            min-width: 240px;
         }
 
         .toggle-button {
             flex: 1;
-            padding: 6px 16px;
+            padding: 8px 24px;
             border: none;
-            border-radius: 6px;
+            border-radius: 22px;
             background: transparent;
             color: var(--text-primary);
             cursor: pointer;
             transition: all 0.3s ease;
-            font-weight: 700;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: -0.5px;
+            font-weight: 600;
+            font-size: 14px;
+            letter-spacing: 0.5px;
             position: relative;
             z-index: 1;
         }
 
         .toggle-button.active {
-            background: var(--primary-light);
+            background: var(--primary-color);
             color: white;
-            box-shadow: var(--shadow-sm);
         }
 
         .toggle-button:not(.active):hover {
-            background: var(--glass-bg);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-sm);
+            background: var(--background-darker);
         }
 
         .tabs {
@@ -551,116 +547,123 @@
         }
 
         .feed-item {
-            padding: 24px;
-            margin: 8px;
-            border-radius: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
             display: grid;
-            grid-template-columns: 80px 1fr;
-            gap: 16px;
-            background: var(--surface-color);
-            box-shadow: var(--shadow-md);
-            position: relative;
-        }
-
-        .feed-item:not(:last-child) {
-            margin-bottom: 16px;
+            grid-template-columns: 300px 1fr;
+            gap: 24px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: var(--glass-border);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            margin-bottom: 24px;
         }
 
         .feed-item:hover {
-            transform: translateY(-2px);
+            transform: translateY(-4px);
             box-shadow: var(--shadow-lg);
         }
 
         .feed-image {
-            width: 80px;
-            height: 80px;
-            border-radius: 16px;
+            width: 100%;
+            height: 100%;
             object-fit: cover;
-            box-shadow: var(--shadow-md);
+            min-height: 200px;
         }
 
         .feed-content {
+            padding: 24px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 16px;
         }
 
         .feed-meta {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 16px;
         }
 
         .feed-type {
-            font-size: 13px;
-            font-weight: 600;
-            padding: 4px 12px;
+            padding: 6px 12px;
             border-radius: 20px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: capitalize;
         }
 
-        .feed-type.wildlife { 
-            background: var(--gradient-wildlife);
-            color: white;
+        .feed-type.wildlife {
+            background: rgba(245, 158, 11, 0.1);
+            color: #F59E0B;
         }
-        .feed-type.ocean { 
-            background: var(--gradient-ocean);
-            color: white;
+
+        .feed-type.ocean {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3B82F6;
         }
-        .feed-type.plant { 
-            background: var(--gradient-plant);
-            color: white;
+
+        .feed-type.botanical {
+            background: rgba(239, 68, 68, 0.1);
+            color: #EF4444;
         }
-        .feed-type.astronomy { 
-            background: var(--gradient-astronomy);
-            color: white;
-        }
-        .feed-type.hazard { 
-            background: var(--gradient-hazard);
-            color: white;
+
+        .feed-type.astronomy {
+            background: rgba(99, 102, 241, 0.1);
+            color: #6366F1;
         }
 
         .feed-time {
-            font-size: 13px;
             color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .feed-item h3 {
-            color: var(--text-primary);
-            font-weight: 600;
-            font-size: 18px;
-            margin: 0;
-            letter-spacing: -0.3px;
-        }
-
-        .feed-item p {
-            color: var(--text-secondary);
             font-size: 14px;
-            line-height: 1.5;
+        }
+
+        .feed-content h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .feed-content p {
+            color: var(--text-secondary);
+            line-height: 1.6;
             margin: 0;
         }
 
         .feed-location {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 6px;
-            font-size: 13px;
+            gap: 8px;
             color: var(--text-muted);
-            padding: 4px 12px;
-            background: var(--background-darker);
+            font-size: 14px;
+        }
+
+        .bookmark-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: auto;
+        }
+
+        .bookmark-button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
             border-radius: 20px;
-            margin-top: 8px;
+            transition: all 0.3s ease;
         }
 
-        .feed-location i {
-            font-size: 12px;
+        .bookmark-button:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--text-primary);
         }
 
-        select {
+        .select {
             padding: 8px 16px;
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -671,7 +674,7 @@
             transition: var(--transition);
         }
 
-        select:focus {
+        .select:focus {
             outline: none;
             border-color: var(--accent-green);
             box-shadow: var(--shadow-sm);
@@ -961,22 +964,22 @@
             pointer-events: none;
         }
 
-        #eventType[value="Ocean"]::before {
+        #eventType[value="OCEAN"]::before {
             content: "\f773"; /* fa-water */
             color: var(--ocean-color);
         }
 
-        #eventType[value="Wildlife"]::before {
+        #eventType[value="WILDLIFE"]::before {
             content: "\f1b0"; /* fa-paw */
             color: var(--wildlife-color);
         }
 
-        #eventType[value="Plant"]::before {
+        #eventType[value="BOTANICAL"]::before {
             content: "\f06c"; /* fa-leaf */
             color: var(--plant-color);
         }
 
-        #eventType[value="Astronomy"]::before {
+        #eventType[value="ASTRONOMY"]::before {
             content: "\f005"; /* fa-star */
             color: var(--astronomy-color);
         }
@@ -1156,10 +1159,9 @@
         </div>
     </header>
 
-    <div class="search-container">
-        <div class="search-bar">
-            <input type="text" placeholder="Search events by location or type...">
-        </div>
+    <div class="event-type-toggle" style="margin: 16px auto; max-width: 800px;">
+        <button class="toggle-button active" data-event-type="current" style="background: var(--primary-color); color: white;">CURRENT</button>
+        <button class="toggle-button" data-event-type="upcoming" style="color: var(--text-primary);">UPCOMING</button>
     </div>
 
     <div class="tabs">
@@ -1175,14 +1177,10 @@
             </div>
             <div class="tab"><i class="fas fa-water"></i> Ocean</div>
             <div class="tab"><i class="fas fa-paw"></i> Wildlife</div>
-            <div class="tab"><i class="fas fa-leaf"></i> Plant</div>
+            <div class="tab"><i class="fas fa-leaf"></i> Botanical</div>
             <div class="tab"><i class="fas fa-star"></i> Astronomy</div>
         </div>
         <div style="display: flex; align-items: center; gap: 16px;">
-            <div class="event-type-toggle">
-                <button class="toggle-button active" data-event-type="current">Current</button>
-                <button class="toggle-button" data-event-type="upcoming">Upcoming</button>
-            </div>
             <button class="add-event" id="openAddEventModal">
                 <i class="fas fa-camera"></i>
                 Add Event
@@ -1202,10 +1200,10 @@
                     <label for="eventType">Event Type</label>
                     <select id="eventType" name="type" required>
                         <option value="">Select type...</option>
-                        <option value="Ocean">Ocean</option>
-                        <option value="Wildlife">Wildlife</option>
-                        <option value="Plant">Plants</option>
-                        <option value="Astronomy">Astronomy</option>
+                        <option value="OCEAN">Ocean</option>
+                        <option value="WILDLIFE">Wildlife</option>
+                        <option value="BOTANICAL">Botanical</option>
+                        <option value="ASTRONOMY">Astronomy</option>
                     </select>
                     <div class="error-message" id="typeError"></div>
                 </div>
@@ -1351,6 +1349,54 @@
             maxZoom: 19
         }).addTo(map);
 
+        // Add test data points
+        const testEvents = [
+            {
+                id: 'test1',
+                type: 'OCEAN',
+                title: 'Bioluminescent Waves',
+                description: 'Bioluminescent waves spotted at Santa Monica Beach',
+                location: { lat: 34.0089, lng: -118.5000 }
+            },
+            {
+                id: 'test2',
+                type: 'WILDLIFE',
+                title: 'Deer Sighting',
+                description: 'Family of deer spotted in Griffith Park',
+                location: { lat: 34.1367, lng: -118.2923 }
+            },
+            {
+                id: 'test3',
+                type: 'BOTANICAL',
+                title: 'Rare Flower Bloom',
+                description: 'Rare California poppy bloom in Antelope Valley',
+                location: { lat: 34.7125, lng: -118.1944 }
+            },
+            {
+                id: 'test4',
+                type: 'ASTRONOMY',
+                title: 'Meteor Shower Viewing',
+                description: 'Perfect viewing conditions for Perseid meteor shower',
+                location: { lat: 34.2250, lng: -118.0600 }
+            }
+        ];
+
+        // Add test markers to the map
+        testEvents.forEach(event => {
+            const marker = L.marker([event.location.lat, event.location.lng], {
+                icon: createCustomIcon(event.type)
+            }).addTo(map);
+
+            marker.bindPopup(`
+                <h3>${event.title}</h3>
+                <p>${event.description}</p>
+                <p style="font-size: 12px; margin-top: 4px; opacity: 0.7;">
+                    <i class="fas fa-map-marker-alt" style="font-size: 10px;"></i> 
+                    ${event.type}
+                </p>
+            `);
+        });
+
         // Check if we need to focus on a specific location (coming from bookmarks)
         const savedLocation = sessionStorage.getItem('view_location');
         if (savedLocation) {
@@ -1365,19 +1411,16 @@
             let color;
             switch(type.toLowerCase()) {
                 case 'wildlife':
-                    color = '#F59E0B'; // wildlife-color
+                    color = '#F59E0B'; // yellow
                     break;
                 case 'ocean':
-                    color = '#3B82F6'; // ocean-color
+                    color = '#3B82F6'; // blue
                     break;
-                case 'plant':
-                    color = '#10B981'; // plant-color
+                case 'botanical':
+                    color = '#EF4444'; // red
                     break;
                 case 'astronomy':
-                    color = '#6366F1'; // astronomy-color
-                    break;
-                case 'hazards':
-                    color = '#EF4444'; // hazard-color
+                    color = '#6366F1'; // purple
                     break;
                 default:
                     color = '#1B2F21'; // dark-green
@@ -1686,23 +1729,135 @@
 
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                const searchTerm = e.target.value.toLowerCase();
-                const feedItems = document.querySelectorAll('.feed-item');
-                
-                feedItems.forEach(item => {
-                    const title = item.querySelector('h3').textContent.toLowerCase();
-                    const description = item.querySelector('p').textContent.toLowerCase();
-                    const type = item.querySelector('.feed-type').textContent.toLowerCase();
-                    
-                    if (title.includes(searchTerm) || 
-                        description.includes(searchTerm) || 
-                        type.includes(searchTerm)) {
-                        item.style.display = 'grid';
-                    } else {
-                        item.style.display = 'none';
+            searchTimeout = setTimeout(async () => {
+                const searchTerm = e.target.value.trim();
+                if (!searchTerm) {
+                    // If search is empty, reload all events
+                    const activeTab = document.querySelector('.tab.active');
+                    const type = activeTab.textContent.trim() === 'All Events' ? null : activeTab.textContent.trim();
+                    const timeFilter = document.querySelector('.time-filter').value;
+                    loadAndDisplayEvents(type, 'current', timeFilter);
+                    return;
+                }
+
+                try {
+                    // Get current filters
+                    const activeTab = document.querySelector('.tab.active');
+                    const type = activeTab.textContent.trim() === 'All Events' ? null : activeTab.textContent.trim();
+                    const timeFilter = document.querySelector('.time-filter').value;
+
+                    // Build search query
+                    const queryParams = new URLSearchParams();
+                    queryParams.append('query', searchTerm);
+                    if (type) queryParams.append('type', type);
+                    if (timeFilter) queryParams.append('timeFilter', timeFilter);
+
+                    // Fetch search results
+                    const response = await fetch(`/api/search?${queryParams.toString()}`);
+                    const searchResults = await response.json();
+
+                    // Clear existing markers
+                    Object.values(markersByEventId).forEach(marker => marker.remove());
+                    markersByEventId = {};
+
+                    const feedContainer = document.querySelector('.feed');
+                    feedContainer.innerHTML = '';
+
+                    if (!searchResults || searchResults.length === 0) {
+                        feedContainer.innerHTML = `
+                            <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                                <i class="fas fa-search" style="font-size: 24px; margin-bottom: 10px;"></i>
+                                <p>No results found for "${searchTerm}"</p>
+                            </div>
+                        `;
+                        return;
                     }
-                });
+
+                    // Display search results
+                    searchResults.forEach(event => {
+                        const marker = addMarker(event);
+                        markersByEventId[event.id] = marker;
+
+                        const feedItem = document.createElement('div');
+                        feedItem.className = 'feed-item';
+                        feedItem.dataset.id = event.id;
+
+                        const dateDisplay = new Date(event.eventDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                        });
+
+                        feedItem.innerHTML = `
+                            <img src="${event.imageUrl}" alt="${event.title}" class="feed-image">
+                            <div class="feed-content">
+                                <div class="feed-meta">
+                                    <span class="feed-type ${event.type.toLowerCase()}">${event.type}</span>
+                                    <span class="feed-time">${dateDisplay}</span>
+                                </div>
+                                <h3>${event.title}</h3>
+                                <p>${event.description}</p>
+                                <div class="feed-location">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span>${event.description}</span>
+                                </div>
+                                <div class="bookmark-actions">
+                                    <button class="bookmark-button">
+                                        <i class="fas fa-bookmark"></i>
+                                        Bookmark
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+
+                        // Add hover effects for the feed item
+                        feedItem.addEventListener('mouseenter', () => {
+                            highlightMarker(marker);
+                            map.panTo(marker.getLatLng());
+                        });
+
+                        feedItem.addEventListener('mouseleave', () => {
+                            unhighlightMarker(marker);
+                        });
+
+                        // Add bookmark functionality
+                        const bookmarkButton = feedItem.querySelector('.bookmark-button');
+                        const itemId = `event-${event.id}`;
+                        
+                        if (bookmarkManager.isBookmarked(itemId)) {
+                            bookmarkButton.classList.add('active');
+                        }
+
+                        bookmarkButton.addEventListener('click', () => {
+                            if (bookmarkButton.classList.contains('active')) {
+                                bookmarkManager.removeBookmark(itemId);
+                                bookmarkButton.classList.remove('active');
+                            } else {
+                                bookmarkManager.addBookmark({
+                                    id: itemId,
+                                    type: event.type,
+                                    title: event.title,
+                                    description: event.description,
+                                    imageUrl: event.imageUrl,
+                                    location: event.description,
+                                    coordinates: event.coordinates
+                                });
+                                bookmarkButton.classList.add('active');
+                            }
+                        });
+
+                        feedContainer.appendChild(feedItem);
+                    });
+                } catch (error) {
+                    console.error('Search error:', error);
+                    const feedContainer = document.querySelector('.feed');
+                    feedContainer.innerHTML = `
+                        <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                            <i class="fas fa-exclamation-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
+                            <p>An error occurred while searching. Please try again.</p>
+                        </div>
+                    `;
+                }
             }, 300);
         });
 
@@ -1877,8 +2032,18 @@
         // Add event listeners for toggle buttons
         document.querySelectorAll('.toggle-button').forEach(button => {
             button.addEventListener('click', () => {
-                document.querySelectorAll('.toggle-button').forEach(btn => btn.classList.remove('active'));
+                // Remove active class and reset styles from all buttons
+                document.querySelectorAll('.toggle-button').forEach(btn => {
+                    btn.classList.remove('active');
+                    btn.style.background = 'transparent';
+                    btn.style.color = 'var(--text-primary)';
+                });
+                
+                // Add active class and set styles for clicked button
                 button.classList.add('active');
+                button.style.background = 'var(--primary-color)';
+                button.style.color = 'white';
+                
                 currentEventType = button.dataset.eventType;
                 
                 // Get current time filter and type
