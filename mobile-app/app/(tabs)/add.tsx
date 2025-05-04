@@ -200,19 +200,39 @@ export default function AddSightingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isTypeModalVisible, setIsTypeModalVisible] = useState(false);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [pinLocation, setPinLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [mapRegion, setMapRegion] = useState({ latitude: 34.0195, longitude: -118.4912, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+  const originalLocation = formData.location;
+  const SANTA_MONICA = { latitude: 34.0195, longitude: -118.4912, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const location = await Location.getCurrentPositionAsync({});
-        setFormData(prev => ({
-          ...prev,
-          location: {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          },
-        }));
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({});
+          const userLoc = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          };
+          setPinLocation({ latitude: userLoc.latitude, longitude: userLoc.longitude });
+          setMapRegion(userLoc);
+          setFormData(prev => ({ ...prev, location: { latitude: userLoc.latitude, longitude: userLoc.longitude } }));
+        } else {
+          setPinLocation({ latitude: SANTA_MONICA.latitude, longitude: SANTA_MONICA.longitude });
+          setMapRegion(SANTA_MONICA);
+          setFormData(prev => ({ ...prev, location: { latitude: SANTA_MONICA.latitude, longitude: SANTA_MONICA.longitude } }));
+          setLocationError('Location permission denied. Using Santa Monica, CA as default.');
+        }
+      } catch (e) {
+        setPinLocation({ latitude: SANTA_MONICA.latitude, longitude: SANTA_MONICA.longitude });
+        setMapRegion(SANTA_MONICA);
+        setFormData(prev => ({ ...prev, location: { latitude: SANTA_MONICA.latitude, longitude: SANTA_MONICA.longitude } }));
+        setLocationError('Could not get location. Using Santa Monica, CA as default.');
       }
     })();
   }, []);
@@ -221,7 +241,6 @@ export default function AddSightingScreen() {
     const errors: FormErrors = {};
     if (!formData.type) errors.type = 'Please select a type';
     if (!formData.title.trim()) errors.title = 'Please enter a title';
-    if (!formData.description.trim()) errors.description = 'Please enter a description';
     if (!formData.image) errors.image = 'Please add a photo';
     if (!formData.location) errors.location = 'Please enable location access';
     
@@ -257,30 +276,52 @@ export default function AddSightingScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm() || !user) return;
-    
+
+    if (!validateForm()) {
+      setError('Please fill out all required fields and upload a photo.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      // Create a new sighting document in Firestore
-      const sightingRef = await addDoc(collection(db, 'sightings'), {
-        userId: user.uid,
-        type: formData.type,
-        title: formData.title,
-        description: formData.description,
-        imageUrl: formData.image,
-        location: formData.location,
-        timestamp: serverTimestamp(),
+
+      const form = new FormData();
+      form.append('title', formData.title);
+      form.append('description', formData.description || '');
+      form.append('type', formData.type);
+      form.append('lat', String(formData.location?.latitude));
+      form.append('lng', String(formData.location?.longitude));
+      // If you have userId, add it here: form.append('userId', userId);
+      if (formData.image) {
+        const uriParts = formData.image.split('.');
+        const fileType = uriParts[uriParts.length - 1];
+        form.append('image', {
+          uri: formData.image,
+          name: `photo.${fileType}`,
+          type: `image/${fileType}`,
+        } as any);
+      }
+
+      const response = await fetch('http://192.168.50.2:3000/api/incidents', {
+        method: 'POST',
+        body: form,
       });
 
-      console.log('Sighting saved with ID:', sightingRef.id);
-      
-      // Navigate back to map on success
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(errorData.message || 'Failed to save incident. Please check your input and try again.');
+        setLoading(false);
+        return;
+      }
+
+      const savedIncident = await response.json();
+      console.log('Incident saved:', savedIncident);
       router.back();
     } catch (err) {
-      console.error('Error saving sighting:', err);
-      setError('Failed to save sighting. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to save incident. Please try again.');
+
     } finally {
       setLoading(false);
     }
@@ -311,39 +352,95 @@ export default function AddSightingScreen() {
     </TouchableOpacity>
   );
 
+  const handleSaveLocation = () => {
+    setFormData(prev => ({ ...prev, location: { latitude: mapRegion.latitude, longitude: mapRegion.longitude } }));
+    setEditingLocation(false);
+  };
+
+  const handleResetLocation = () => {
+    if (pinLocation) {
+      setMapRegion({ ...pinLocation, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+    }
+  };
+
+  // Keep pinLocation in sync with formData.location
+  useEffect(() => {
+    if (formData.location && formData.location.latitude && formData.location.longitude) {
+      setPinLocation({ latitude: formData.location.latitude, longitude: formData.location.longitude });
+    }
+  }, [formData.location]);
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView style={styles.scrollContainer}>
         <ThemedView style={styles.form}>
-          {formData.location && (
-            <View style={[
-              styles.formGroup,
-              { backgroundColor: isDark ? '#333333' : '#FFFFFF' }
-            ]}>
-              <ThemedText style={[
-                styles.label,
-                { color: isDark ? '#FFFFFF' : '#000000' }
-              ]}>Location</ThemedText>
-              <View style={styles.mapContainer}>
-                <MapView
-                  style={styles.map}
-                  initialRegion={{
-                    latitude: formData.location.latitude,
-                    longitude: formData.location.longitude,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                  }}
-                >
-                  <Marker
-                    coordinate={{
-                      latitude: formData.location.latitude,
-                      longitude: formData.location.longitude,
-                    }}
+          <View style={[
+            styles.formGroup,
+            { backgroundColor: isDark ? '#333333' : '#FFFFFF' }
+          ]}>
+            <ThemedText style={[
+              styles.label,
+              { color: isDark ? '#FFFFFF' : '#000000' }
+            ]}>Photo</ThemedText>
+            <TouchableOpacity 
+              style={[
+                styles.imageButton,
+                { 
+                  backgroundColor: isDark ? '#444444' : '#F9FAFB',
+                  borderColor: isDark ? '#444444' : '#E5E7EB'
+                },
+                formErrors.image && styles.errorInput
+              ]} 
+              onPress={pickImage}
+            >
+              {formData.image ? (
+                <Image source={{ uri: formData.image }} style={styles.imagePreview} />
+              ) : (
+                <View style={styles.imagePlaceholder}>
+                  <Ionicons 
+                    name="camera" 
+                    size={24} 
+                    color={isDark ? '#FFFFFF' : '#000000'} 
                   />
-                </MapView>
-              </View>
-            </View>
-          )}
+                  <ThemedText>Add Photo</ThemedText>
+                </View>
+              )}
+            </TouchableOpacity>
+            {formErrors.image && (
+              <ThemedText style={styles.errorText}>{formErrors.image}</ThemedText>
+            )}
+          </View>
+
+          <View style={[
+            styles.formGroup,
+            { backgroundColor: isDark ? '#333333' : '#FFFFFF' }
+          ]}>
+            <ThemedText style={[
+              styles.label,
+              { color: isDark ? '#FFFFFF' : '#000000' }
+            ]}>Title</ThemedText>
+            <TextInput
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: isDark ? '#444444' : '#F9FAFB',
+                  borderColor: isDark ? '#444444' : '#E5E7EB',
+                  color: isDark ? '#FFFFFF' : '#000000'
+                },
+                formErrors.title && styles.errorInput
+              ]}
+              placeholder="What did you see?"
+              placeholderTextColor={isDark ? '#888888' : '#666666'}
+              value={formData.title}
+              onChangeText={(text) => {
+                setFormData(prev => ({ ...prev, title: text }));
+                setFormErrors(prev => ({ ...prev, title: undefined }));
+              }}
+            />
+            {formErrors.title && (
+              <ThemedText style={styles.errorText}>{formErrors.title}</ThemedText>
+            )}
+          </View>
 
           <View style={[
             styles.formGroup,
@@ -397,37 +494,6 @@ export default function AddSightingScreen() {
             <ThemedText style={[
               styles.label,
               { color: isDark ? '#FFFFFF' : '#000000' }
-            ]}>Title</ThemedText>
-            <TextInput
-              style={[
-                styles.input,
-                { 
-                  backgroundColor: isDark ? '#444444' : '#F9FAFB',
-                  borderColor: isDark ? '#444444' : '#E5E7EB',
-                  color: isDark ? '#FFFFFF' : '#000000'
-                },
-                formErrors.title && styles.errorInput
-              ]}
-              placeholder="What did you see?"
-              placeholderTextColor={isDark ? '#888888' : '#666666'}
-              value={formData.title}
-              onChangeText={(text) => {
-                setFormData(prev => ({ ...prev, title: text }));
-                setFormErrors(prev => ({ ...prev, title: undefined }));
-              }}
-            />
-            {formErrors.title && (
-              <ThemedText style={styles.errorText}>{formErrors.title}</ThemedText>
-            )}
-          </View>
-
-          <View style={[
-            styles.formGroup,
-            { backgroundColor: isDark ? '#333333' : '#FFFFFF' }
-          ]}>
-            <ThemedText style={[
-              styles.label,
-              { color: isDark ? '#FFFFFF' : '#000000' }
             ]}>Description</ThemedText>
             <TextInput
               style={[
@@ -455,40 +521,62 @@ export default function AddSightingScreen() {
             )}
           </View>
 
-          <View style={[
-            styles.formGroup,
-            { backgroundColor: isDark ? '#333333' : '#FFFFFF' }
-          ]}>
-            <ThemedText style={[
-              styles.label,
-              { color: isDark ? '#FFFFFF' : '#000000' }
-            ]}>Photo</ThemedText>
-            <TouchableOpacity 
-              style={[
-                styles.imageButton,
-                { 
-                  backgroundColor: isDark ? '#444444' : '#F9FAFB',
-                  borderColor: isDark ? '#444444' : '#E5E7EB'
-                },
-                formErrors.image && styles.errorInput
-              ]} 
-              onPress={pickImage}
-            >
-              {formData.image ? (
-                <Image source={{ uri: formData.image }} style={styles.imagePreview} />
+          <View style={[styles.formGroup, { backgroundColor: isDark ? '#333333' : '#FFFFFF' }]}> 
+            <ThemedText style={[styles.label, { color: isDark ? '#FFFFFF' : '#000000' }]}>Location</ThemedText>
+            {locationError && (
+              <ThemedText style={{ color: '#E53E3E', marginBottom: 8 }}>{locationError}</ThemedText>
+            )}
+            <View style={styles.mapContainer}>
+              {mapRegion && pinLocation ? (
+                <MapView
+                  style={styles.map}
+                  region={mapRegion}
+                  scrollEnabled={editingLocation}
+                  zoomEnabled={editingLocation}
+                  pitchEnabled={false}
+                  rotateEnabled={false}
+                  onRegionChangeComplete={editingLocation ? setMapRegion : undefined}
+                >
+                  {/* Only show marker when not editing and pinLocation is set */}
+                  {!editingLocation && pinLocation && (
+                    <Marker coordinate={pinLocation} />
+                  )}
+                </MapView>
               ) : (
-                <View style={styles.imagePlaceholder}>
-                  <Ionicons 
-                    name="camera" 
-                    size={24} 
-                    color={isDark ? '#FFFFFF' : '#000000'} 
-                  />
-                  <ThemedText>Add Photo</ThemedText>
+                <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                  <ThemedText>Loading map...</ThemedText>
                 </View>
               )}
-            </TouchableOpacity>
-            {formErrors.image && (
-              <ThemedText style={styles.errorText}>{formErrors.image}</ThemedText>
+              {/* Only show overlay pin when editing */}
+              {editingLocation && mapRegion && (
+                <View pointerEvents="none" style={{ position: 'absolute', left: '50%', top: '50%', marginLeft: -24, marginTop: -48 }}>
+                  <Ionicons name="location" size={48} color={isDark ? '#48BB78' : '#2F855A'} />
+                </View>
+              )}
+            </View>
+            {!editingLocation && (
+              <TouchableOpacity
+                style={{ marginTop: 12, alignSelf: 'flex-end', backgroundColor: isDark ? '#2F855A' : '#48BB78', padding: 10, borderRadius: 8 }}
+                onPress={() => setEditingLocation(true)}
+              >
+                <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Change Location</ThemedText>
+              </TouchableOpacity>
+            )}
+            {editingLocation && (
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
+                <TouchableOpacity
+                  style={{ marginRight: 10, backgroundColor: '#E53E3E', padding: 10, borderRadius: 8 }}
+                  onPress={handleResetLocation}
+                >
+                  <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Reset</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ backgroundColor: isDark ? '#2F855A' : '#48BB78', padding: 10, borderRadius: 8 }}
+                  onPress={handleSaveLocation}
+                >
+                  <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Save</ThemedText>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
 
