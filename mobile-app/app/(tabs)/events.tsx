@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, FlatList, TouchableOpacity, View, Platform, Text, Image } from 'react-native';
+import { StyleSheet, FlatList, TouchableOpacity, View, Platform, Text, Image, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
+import { doc, updateDoc, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
+import { db } from '@/services/firebase';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -18,6 +21,7 @@ interface Event {
   type: EventType;
   imageUrl: string | null;
   isBookmarked?: boolean;
+  comments: { id: string; userId: string; username: string; text: string; timestamp: string }[];
 }
 
 const getTagColor = (type: Event['type']) => {
@@ -61,11 +65,30 @@ export default function EventsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { user } = useAuth();
 
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eventTimeFilter, setEventTimeFilter] = useState<'CURRENT' | 'UPCOMING'>('CURRENT');
+  const [sortType, setSortType] = useState<'recent' | 'trending'>('recent');
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<EventType[]>([]);
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState<'ALL' | 'WEEK' | 'MONTH' | 'UPCOMING'>('ALL');
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
+
+  const categoryOptions: { type: EventType; label: string; icon: any }[] = [
+    { type: 'OCEAN', label: 'OCEAN', icon: <Ionicons name="water" size={20} color="#3B82F6" style={{ marginRight: 8 }} /> },
+    { type: 'WILDLIFE', label: 'WILDLIFE', icon: <Ionicons name="paw" size={20} color="#F59E0B" style={{ marginRight: 8 }} /> },
+    { type: 'BOTANICAL', label: 'BOTANICAL', icon: <Ionicons name="leaf" size={20} color="#22C55E" style={{ marginRight: 8 }} /> },
+    { type: 'ASTRONOMY', label: 'ASTRONOMY', icon: <Ionicons name="star" size={20} color="#6366F1" style={{ marginRight: 8 }} /> },
+  ];
+  const timePeriodOptions = [
+    { key: 'ALL', label: 'ALL' },
+    { key: 'WEEK', label: 'WEEK' },
+    { key: 'MONTH', label: 'MONTH' },
+    { key: 'UPCOMING', label: 'UPCOMING' },
+  ];
 
   useEffect(() => {
     try {
@@ -76,6 +99,39 @@ export default function EventsScreen() {
       setLoading(false);
     }
   }, [eventTimeFilter]); // Reload when filter changes
+
+  // Apply filtering when events, selectedCategories, or selectedTimePeriod change
+  useEffect(() => {
+    applyFilters();
+  }, [events, selectedCategories, selectedTimePeriod]);
+
+  const applyFilters = () => {
+    let filtered = [...events];
+    // Filter by categories if any selected
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter(event => selectedCategories.includes(event.type));
+    }
+    // Filter by time period
+    if (selectedTimePeriod !== 'ALL') {
+      const now = new Date();
+      filtered = filtered.filter(event => {
+        const eventDate = new Date(event.date);
+        if (selectedTimePeriod === 'WEEK') {
+          const weekAgo = new Date(now);
+          weekAgo.setDate(now.getDate() - 7);
+          return eventDate >= weekAgo && eventDate <= now;
+        } else if (selectedTimePeriod === 'MONTH') {
+          const monthAgo = new Date(now);
+          monthAgo.setMonth(now.getMonth() - 1);
+          return eventDate >= monthAgo && eventDate <= now;
+        } else if (selectedTimePeriod === 'UPCOMING') {
+          return eventDate > now;
+        }
+        return true;
+      });
+    }
+    setFilteredEvents(filtered);
+  };
 
   const loadEvents = async () => {
     try {
@@ -92,7 +148,16 @@ export default function EventsScreen() {
           location: 'Santa Monica',
           type: 'OCEAN',
           imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000&auto=format&fit=crop',
-          isBookmarked: true
+          isBookmarked: true,
+          comments: [
+            {
+              id: '1',
+              userId: 'user1',
+              username: 'JohnDoe',
+              text: 'Amazing sight! I saw this too last night.',
+              timestamp: new Date(Date.now() - 3600000).toISOString()
+            }
+          ]
         },
         {
           id: '2',
@@ -102,7 +167,16 @@ export default function EventsScreen() {
           location: 'Santa Monica Bay',
           type: 'WILDLIFE',
           imageUrl: 'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=1000&auto=format&fit=crop',
-          isBookmarked: false
+          isBookmarked: false,
+          comments: [
+            {
+              id: '2',
+              userId: 'user2',
+              username: 'JaneSmith',
+              text: 'Saw a pod of whales this morning!',
+              timestamp: new Date(Date.now() - 7200000).toISOString()
+            }
+          ]
         },
         {
           id: '3',
@@ -112,7 +186,8 @@ export default function EventsScreen() {
           location: 'Santa Monica Mountains',
           type: 'BOTANICAL',
           imageUrl: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=1000&auto=format&fit=crop',
-          isBookmarked: false
+          isBookmarked: false,
+          comments: []
         }
       ];
       
@@ -123,7 +198,16 @@ export default function EventsScreen() {
         return eventTimeFilter === 'CURRENT' ? eventDate <= now : eventDate > now;
       });
       
-      setEvents(filteredEvents);
+      // Sort events based on sortType
+      const sortedEvents = [...filteredEvents].sort((a, b) => {
+        if (sortType === 'recent') {
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        } else {
+          return b.comments.length - a.comments.length;
+        }
+      });
+      
+      setEvents(sortedEvents);
     } catch (err) {
       console.error('Error loading events:', err);
       setError('Failed to load events');
@@ -132,12 +216,40 @@ export default function EventsScreen() {
     }
   };
 
-  const toggleBookmark = (eventId: string) => {
-    setEvents(events.map(event => 
-      event.id === eventId 
-        ? { ...event, isBookmarked: !event.isBookmarked }
-        : event
-    ));
+  const toggleBookmark = async (eventId: string) => {
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      const savedEvents: string[] = userSnap.exists() && userSnap.data().savedEvents ? userSnap.data().savedEvents : [];
+      const isBookmarked = savedEvents.includes(eventId);
+      // Update Firestore
+      await updateDoc(userRef, {
+        savedEvents: isBookmarked ? arrayRemove(eventId) : arrayUnion(eventId)
+      });
+      // Update local state
+      setEvents(events.map(event => 
+        event.id === eventId 
+          ? { ...event, isBookmarked: !isBookmarked }
+          : event
+      ));
+    } catch (err) {
+      console.error('Error updating bookmarks:', err);
+    }
+  };
+
+  const toggleCategory = (type: EventType) => {
+    setSelectedCategories((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    );
+  };
+  const handleReset = () => {
+    setSelectedCategories([]);
+    setSelectedTimePeriod('ALL');
+  };
+  const handleApply = () => {
+    setFilterModalVisible(false);
+    applyFilters();
   };
 
   const renderEvent = ({ item }: { item: Event }) => {
@@ -209,16 +321,21 @@ export default function EventsScreen() {
                   {item.location}
                 </Text>
               </View>
-              <TouchableOpacity
-                onPress={() => toggleBookmark(item.id)}
-                style={styles.bookmarkButton}
-              >
-                <Ionicons
-                  name={item.isBookmarked ? "bookmark" : "bookmark-outline"}
-                  size={24}
-                  color={isDark ? '#888888' : '#666666'}
-                />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: isDark ? '#CCCCCC' : '#666666', marginRight: 12 }}>
+                  Comments ({item.comments.length})
+                </Text>
+                <TouchableOpacity
+                  onPress={() => toggleBookmark(item.id)}
+                  style={styles.bookmarkButton}
+                >
+                  <Ionicons
+                    name={item.isBookmarked ? "bookmark" : "bookmark-outline"}
+                    size={24}
+                    color={isDark ? '#888888' : '#666666'}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </TouchableOpacity>
@@ -291,9 +408,93 @@ export default function EventsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Sort and Filter Row */}
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginRight: 20, marginBottom: 4 }}>
+        <TouchableOpacity onPress={() => setSortType(sortType === 'recent' ? 'trending' : 'recent')}>
+          <Text style={{ fontSize: 12, color: '#888', textDecorationLine: 'underline', marginRight: 12 }}>
+            Sort: {sortType === 'recent' ? 'Most Recent' : 'Trending'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setFilterModalVisible(true)} style={{ padding: 4 }}>
+          <Ionicons name="filter" size={20} color="#888" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Filter Modal */}
+      <Modal
+        visible={filterModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, minHeight: 340 }}>
+            <Text style={{ fontWeight: 'bold', fontSize: 20, marginBottom: 20 }}>Filter</Text>
+            {/* Categories */}
+            <Text style={{ fontWeight: '600', fontSize: 16, marginBottom: 8 }}>Categories</Text>
+            {categoryOptions.map((cat) => (
+              <TouchableOpacity
+                key={cat.type}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: selectedCategories.includes(cat.type) ? '#2B4C34' : '#E5E7EB',
+                  backgroundColor: selectedCategories.includes(cat.type) ? '#E6F4EA' : '#fff',
+                  borderRadius: 24,
+                  paddingVertical: 10,
+                  paddingHorizontal: 18,
+                  marginBottom: 10,
+                }}
+                onPress={() => toggleCategory(cat.type)}
+              >
+                {cat.icon}
+                <Text style={{ fontWeight: '500', fontSize: 15, color: '#222' }}>{cat.label}</Text>
+              </TouchableOpacity>
+            ))}
+            {/* Time Period */}
+            <Text style={{ fontWeight: '600', fontSize: 16, marginTop: 18, marginBottom: 8 }}>Time Period</Text>
+            <View style={{ flexDirection: 'row', marginBottom: 18 }}>
+              {timePeriodOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={{
+                    backgroundColor: selectedTimePeriod === opt.key ? '#F9B233' : '#fff',
+                    borderColor: selectedTimePeriod === opt.key ? '#F9B233' : '#E5E7EB',
+                    borderWidth: 1,
+                    borderRadius: 20,
+                    paddingVertical: 8,
+                    paddingHorizontal: 18,
+                    marginRight: 10,
+                  }}
+                  onPress={() => setSelectedTimePeriod(opt.key as any)}
+                >
+                  <Text style={{ fontWeight: '600', color: selectedTimePeriod === opt.key ? '#fff' : '#222' }}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* Buttons */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+              <TouchableOpacity
+                onPress={handleReset}
+                style={{ flex: 1, backgroundColor: '#E5E7EB', borderRadius: 16, paddingVertical: 12, marginRight: 10, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#222', fontWeight: '600', fontSize: 16 }}>Reset</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleApply}
+                style={{ flex: 1, backgroundColor: '#2B4C34', borderRadius: 16, paddingVertical: 12, marginLeft: 10, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Existing FlatList */}
       <FlatList
-        data={events}
+        data={filteredEvents}
         renderItem={renderEvent}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}

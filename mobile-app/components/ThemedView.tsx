@@ -1,5 +1,4 @@
-import { View, type ViewProps } from 'react-native';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { View, type ViewProps, useColorScheme } from 'react-native';
 
 export function ThemedView(props: ViewProps) {
   const colorScheme = useColorScheme();
