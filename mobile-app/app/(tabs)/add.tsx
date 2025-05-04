@@ -9,6 +9,9 @@ import MapView, { Marker } from 'react-native-maps';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useAuth } from '@/contexts/AuthContext';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/services/firebase';
 
 type EventType = 'OCEAN' | 'WILDLIFE' | 'BOTANICAL' | 'ASTRONOMY';
 
@@ -183,6 +186,7 @@ export default function AddSightingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { user } = useAuth();
 
   const [formData, setFormData] = useState<FormData>({
     type: '',
@@ -253,32 +257,30 @@ export default function AddSightingScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (!validateForm() || !user) return;
     
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('http://192.168.1.1:3000/api/sightings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+      // Create a new sighting document in Firestore
+      const sightingRef = await addDoc(collection(db, 'sightings'), {
+        userId: user.uid,
+        type: formData.type,
+        title: formData.title,
+        description: formData.description,
+        imageUrl: formData.image,
+        location: formData.location,
+        timestamp: serverTimestamp(),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to save sighting');
-      }
-
-      const savedSighting = await response.json();
-      console.log('Sighting saved:', savedSighting);
+      console.log('Sighting saved with ID:', sightingRef.id);
       
       // Navigate back to map on success
       router.back();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save sighting. Please try again.');
+      console.error('Error saving sighting:', err);
+      setError('Failed to save sighting. Please try again.');
     } finally {
       setLoading(false);
     }

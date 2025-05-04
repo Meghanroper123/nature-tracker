@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Image, ScrollView, TextInput, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, Image, ScrollView, TextInput, TouchableOpacity, Platform, KeyboardAvoidingView } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
@@ -51,29 +51,72 @@ export default function EventDetailScreen() {
       setLoading(true);
       setError(null);
       // TODO: Replace with actual API call
-      const mockEvent: Event = {
-        id: '1',
-        title: 'Bioluminescence',
-        description: 'Bioluminescent waves in Santa Monica',
-        date: new Date().toISOString(),
-        location: {
-          lat: 34.0195,
-          lng: -118.4912,
-          description: 'Santa Monica Beach'
+      const mockEvents: Record<string, Event> = {
+        '1': {
+          id: '1',
+          title: 'Bioluminescence',
+          description: 'Bioluminescent waves in Santa Monica',
+          date: new Date().toISOString(),
+          location: {
+            lat: 34.0095,
+            lng: -118.4969,
+            description: 'Santa Monica Beach'
+          },
+          type: 'OCEAN',
+          imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e',
+          comments: [
+            {
+              id: '1',
+              userId: 'user1',
+              username: 'JohnDoe',
+              text: 'Amazing sight! I saw this too last night.',
+              timestamp: new Date(Date.now() - 3600000).toISOString()
+            }
+          ]
         },
-        type: 'OCEAN',
-        imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e',
-        comments: [
-          {
-            id: '1',
-            userId: 'user1',
-            username: 'JohnDoe',
-            text: 'Amazing sight! I saw this too last night.',
-            timestamp: new Date(Date.now() - 3600000).toISOString()
-          }
-        ]
+        '2': {
+          id: '2',
+          title: 'Whale Migration',
+          description: 'Whales migrating in the Bay',
+          date: new Date().toISOString(),
+          location: {
+            lat: 34.0195,
+            lng: -118.4912,
+            description: 'Santa Monica Bay'
+          },
+          type: 'WILDLIFE',
+          imageUrl: 'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5',
+          comments: [
+            {
+              id: '2',
+              userId: 'user2',
+              username: 'JaneSmith',
+              text: 'Saw a pod of whales this morning!',
+              timestamp: new Date(Date.now() - 7200000).toISOString()
+            }
+          ]
+        },
+        '3': {
+          id: '3',
+          title: 'Superbloom',
+          description: 'Superbloom in Santa Monica',
+          date: new Date().toISOString(),
+          location: {
+            lat: 34.1095,
+            lng: -118.6012,
+            description: 'Santa Monica Mountains'
+          },
+          type: 'BOTANICAL',
+          imageUrl: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946',
+          comments: []
+        }
       };
-      setEvent(mockEvent);
+
+      const event = mockEvents[id as string];
+      if (!event) {
+        throw new Error('Event not found');
+      }
+      setEvent(event);
     } catch (err) {
       console.error('Error loading event details:', err);
       setError('Failed to load event details');
@@ -135,104 +178,120 @@ export default function EventDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <ThemedView style={styles.container}>
-        <ScrollView style={styles.scrollView}>
-          {/* Header with back button */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={isDark ? '#FFFFFF' : '#000000'} />
-            </TouchableOpacity>
-          </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ThemedView style={styles.container}>
+          <ScrollView style={styles.scrollView}>
+            {/* Header with back button */}
+            <View style={styles.header}>
+              <TouchableOpacity 
+                onPress={() => router.back()} 
+                style={[
+                  styles.backButton,
+                  { backgroundColor: isDark ? '#333333' : '#FFFFFF' }
+                ]}
+              >
+                <Ionicons 
+                  name="arrow-back" 
+                  size={24} 
+                  color={isDark ? '#FFFFFF' : '#000000'} 
+                />
+              </TouchableOpacity>
+            </View>
 
-          {/* Main image */}
-          <Image
-            source={{ uri: event.imageUrl }}
-            style={styles.mainImage}
-            resizeMode="cover"
-          />
+            {/* Main image */}
+            <Image
+              source={{ uri: event.imageUrl }}
+              style={styles.mainImage}
+              resizeMode="cover"
+            />
 
-          {/* Event details */}
-          <View style={styles.detailsContainer}>
-            <View style={styles.titleRow}>
-              <ThemedText style={styles.title}>{event.title}</ThemedText>
-              <View style={[styles.tag, { backgroundColor: getTagColor(event.type).bg }]}>
-                <ThemedText style={[styles.tagText, { color: getTagColor(event.type).text }]}>
-                  {event.type}
+            {/* Event details */}
+            <View style={styles.detailsContainer}>
+              <View style={styles.titleRow}>
+                <ThemedText style={styles.title}>{event.title}</ThemedText>
+                <View style={[styles.tag, { backgroundColor: getTagColor(event.type).bg }]}>
+                  <ThemedText style={[styles.tagText, { color: getTagColor(event.type).text }]}>
+                    {event.type}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <ThemedText style={styles.date}>{formatDate(event.date)}</ThemedText>
+              <ThemedText style={styles.description}>{event.description}</ThemedText>
+
+              {/* Map view */}
+              <View style={styles.mapContainer}>
+                <MapView
+                  style={styles.map}
+                  initialRegion={{
+                    latitude: event.location.lat,
+                    longitude: event.location.lng,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                >
+                  <Marker
+                    coordinate={{
+                      latitude: event.location.lat,
+                      longitude: event.location.lng,
+                    }}
+                    title={event.title}
+                    description={event.location.description}
+                  />
+                </MapView>
+              </View>
+
+              {/* Comments section */}
+              <View style={styles.commentsSection}>
+                <ThemedText style={styles.commentsHeader}>
+                  Comments ({event.comments.length})
                 </ThemedText>
+                
+                {event.comments.map(comment => (
+                  <View key={comment.id} style={styles.commentItem}>
+                    <View style={styles.commentHeader}>
+                      <ThemedText style={styles.commentUsername}>{comment.username}</ThemedText>
+                      <ThemedText style={styles.commentTime}>
+                        {formatRelativeTime(comment.timestamp)}
+                      </ThemedText>
+                    </View>
+                    <ThemedText style={styles.commentText}>{comment.text}</ThemedText>
+                  </View>
+                ))}
               </View>
             </View>
 
-            <ThemedText style={styles.date}>{formatDate(event.date)}</ThemedText>
-            <ThemedText style={styles.description}>{event.description}</ThemedText>
-
-            {/* Map view */}
-            <View style={styles.mapContainer}>
-              <MapView
-                style={styles.map}
-                initialRegion={{
-                  latitude: event.location.lat,
-                  longitude: event.location.lng,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
+            {/* Comment input */}
+            <View style={styles.commentInputContainer}>
+              <TextInput
+                style={[
+                  styles.commentInput,
+                  { backgroundColor: isDark ? '#333333' : '#F0F0F0' }
+                ]}
+                placeholder="Add a comment..."
+                placeholderTextColor={isDark ? '#888888' : '#666666'}
+                value={newComment}
+                onChangeText={setNewComment}
+                multiline
+              />
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  { opacity: newComment.trim() ? 1 : 0.5 }
+                ]}
+                onPress={handleAddComment}
+                disabled={!newComment.trim()}
               >
-                <Marker
-                  coordinate={{
-                    latitude: event.location.lat,
-                    longitude: event.location.lng,
-                  }}
-                  title={event.title}
-                  description={event.location.description}
-                />
-              </MapView>
+                <Ionicons name="send" size={24} color="#4CAF50" />
+              </TouchableOpacity>
             </View>
-
-            {/* Comments section */}
-            <View style={styles.commentsSection}>
-              <ThemedText style={styles.commentsHeader}>
-                Comments ({event.comments.length})
-              </ThemedText>
-              
-              {event.comments.map(comment => (
-                <View key={comment.id} style={styles.commentItem}>
-                  <View style={styles.commentHeader}>
-                    <ThemedText style={styles.commentUsername}>{comment.username}</ThemedText>
-                    <ThemedText style={styles.commentTime}>
-                      {formatRelativeTime(comment.timestamp)}
-                    </ThemedText>
-                  </View>
-                  <ThemedText style={styles.commentText}>{comment.text}</ThemedText>
-                </View>
-              ))}
-            </View>
-          </View>
-        </ScrollView>
-
-        {/* Comment input */}
-        <View style={styles.commentInputContainer}>
-          <TextInput
-            style={[
-              styles.commentInput,
-              { backgroundColor: isDark ? '#333333' : '#F0F0F0' }
-            ]}
-            placeholder="Add a comment..."
-            placeholderTextColor={isDark ? '#888888' : '#666666'}
-            value={newComment}
-            onChangeText={setNewComment}
-            multiline
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              { opacity: newComment.trim() ? 1 : 0.5 }
-            ]}
-            onPress={handleAddComment}
-            disabled={!newComment.trim()}
-          >
-            <Ionicons name="send" size={24} color="#4CAF50" />
-          </TouchableOpacity>
-        </View>
-      </ThemedView>
+          </ScrollView>
+        </ThemedView>
+      </KeyboardAvoidingView>
     </>
   );
 }
@@ -302,17 +361,26 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingTop: 50,
+    paddingHorizontal: 16,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   mainImage: {
     width: '100%',

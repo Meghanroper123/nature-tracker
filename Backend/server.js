@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, addDoc, getDocs, doc, getDoc, query, orderBy } = require('firebase/firestore');
+const { getFirestore, collection, addDoc, getDocs, doc, getDoc, query, orderBy, where } = require('firebase/firestore');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,10 +35,22 @@ const db = getFirestore(firebaseApp);
 // API Routes
 app.get('/api/sightings', async (req, res) => {
   try {
+    const { userId } = req.query;
     const sightingsRef = collection(db, 'sightings');
-    const q = query(sightingsRef, orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
     
+    let q;
+    if (userId) {
+      // Query for specific user's sightings
+      q = query(sightingsRef, 
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+    } else {
+      // Query for all sightings
+      q = query(sightingsRef, orderBy('createdAt', 'desc'));
+    }
+    
+    const querySnapshot = await getDocs(q);
     const sightings = [];
     querySnapshot.forEach((doc) => {
       sightings.push({ id: doc.id, ...doc.data() });
@@ -52,7 +64,11 @@ app.get('/api/sightings', async (req, res) => {
 
 app.post('/api/sightings', async (req, res) => {
   try {
-    const { type, title, description, image, location } = req.body;
+    const { type, title, description, image, location, userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
     
     const sightingData = {
       type,
@@ -63,6 +79,7 @@ app.post('/api/sightings', async (req, res) => {
         latitude: location.latitude,
         longitude: location.longitude
       },
+      userId,
       createdAt: new Date().toISOString()
     };
 
