@@ -3,8 +3,8 @@ import { StyleSheet, FlatList, TouchableOpacity, View, Platform, Text, Image, Mo
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { doc, updateDoc, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
-import { db } from '@/services/firebase';
+import { doc, updateDoc, arrayUnion, arrayRemove, getDoc, collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
+import { db, getFirebasePublicUrl } from '@/services/firebase';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -14,14 +14,12 @@ type EventType = 'OCEAN' | 'WILDLIFE' | 'BOTANICAL' | 'ASTRONOMY';
 
 interface Event {
   id: string;
+  type: EventType | string;
   title: string;
   description: string;
-  date: string;
-  location: string;
-  type: EventType;
-  imageUrl: string | null;
-  isBookmarked?: boolean;
-  comments: { id: string; userId: string; username: string; text: string; timestamp: string }[];
+  location: { lat: number; lng: number };
+  timestamp: string;
+  imageUrl?: string | null;
 }
 
 const getTagColor = (type: Event['type']) => {
@@ -91,14 +89,25 @@ export default function EventsScreen() {
   ];
 
   useEffect(() => {
-    try {
-      loadEvents();
-    } catch (err) {
-      console.error('Error in useEffect:', err);
-      setError('Failed to initialize events screen');
-      setLoading(false);
-    }
-  }, [eventTimeFilter]); // Reload when filter changes
+    setLoading(true);
+    setError(null);
+
+    const fetchIncidents = async () => {
+      try {
+        const response = await fetch('http://192.168.50.2:3000/api/incidents');
+        const data = await response.json();
+        console.log('Fetched incidents from API:', data);
+        setEvents(data);
+      } catch (err) {
+        console.error('Error fetching incidents from API:', err);
+        setError('Failed to load events');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchIncidents();
+  }, [eventTimeFilter]);
 
   // Apply filtering when events, selectedCategories, or selectedTimePeriod change
   useEffect(() => {
@@ -109,13 +118,13 @@ export default function EventsScreen() {
     let filtered = [...events];
     // Filter by categories if any selected
     if (selectedCategories.length > 0) {
-      filtered = filtered.filter(event => selectedCategories.includes(event.type));
+      filtered = filtered.filter(event => selectedCategories.includes(event.type as EventType));
     }
     // Filter by time period
     if (selectedTimePeriod !== 'ALL') {
       const now = new Date();
       filtered = filtered.filter(event => {
-        const eventDate = new Date(event.date);
+        const eventDate = new Date(event.timestamp);
         if (selectedTimePeriod === 'WEEK') {
           const weekAgo = new Date(now);
           weekAgo.setDate(now.getDate() - 7);
@@ -131,89 +140,6 @@ export default function EventsScreen() {
       });
     }
     setFilteredEvents(filtered);
-  };
-
-  const loadEvents = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      // TODO: Implement API call to fetch events with eventTimeFilter
-      // For now using mock data
-      const mockEvents: Event[] = [
-        {
-          id: '1',
-          title: 'Bioluminescence',
-          description: 'Bioluminescent waves in Santa Monica',
-          date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          location: 'Santa Monica',
-          type: 'OCEAN',
-          imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000&auto=format&fit=crop',
-          isBookmarked: true,
-          comments: [
-            {
-              id: '1',
-              userId: 'user1',
-              username: 'JohnDoe',
-              text: 'Amazing sight! I saw this too last night.',
-              timestamp: new Date(Date.now() - 3600000).toISOString()
-            }
-          ]
-        },
-        {
-          id: '2',
-          title: 'Whale Migration',
-          description: 'Whales migrating in the Bay',
-          date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          location: 'Santa Monica Bay',
-          type: 'WILDLIFE',
-          imageUrl: 'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=1000&auto=format&fit=crop',
-          isBookmarked: false,
-          comments: [
-            {
-              id: '2',
-              userId: 'user2',
-              username: 'JaneSmith',
-              text: 'Saw a pod of whales this morning!',
-              timestamp: new Date(Date.now() - 7200000).toISOString()
-            }
-          ]
-        },
-        {
-          id: '3',
-          title: 'Superbloom',
-          description: 'Superbloom in Santa Monica',
-          date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          location: 'Santa Monica Mountains',
-          type: 'BOTANICAL',
-          imageUrl: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=1000&auto=format&fit=crop',
-          isBookmarked: false,
-          comments: []
-        }
-      ];
-      
-      // Filter events based on eventTimeFilter
-      const now = new Date();
-      const filteredEvents = mockEvents.filter(event => {
-        const eventDate = new Date(event.date);
-        return eventTimeFilter === 'CURRENT' ? eventDate <= now : eventDate > now;
-      });
-      
-      // Sort events based on sortType
-      const sortedEvents = [...filteredEvents].sort((a, b) => {
-        if (sortType === 'recent') {
-          return new Date(b.date).getTime() - new Date(a.date).getTime();
-        } else {
-          return b.comments.length - a.comments.length;
-        }
-      });
-      
-      setEvents(sortedEvents);
-    } catch (err) {
-      console.error('Error loading events:', err);
-      setError('Failed to load events');
-    } finally {
-      setLoading(false);
-    }
   };
 
   const toggleBookmark = async (eventId: string) => {
@@ -254,7 +180,7 @@ export default function EventsScreen() {
 
   const renderEvent = ({ item }: { item: Event }) => {
     try {
-      const tagColors = getTagColor(item.type);
+      const tagColors = getTagColor(item.type as EventType);
       
       return (
         <TouchableOpacity
@@ -273,7 +199,7 @@ export default function EventsScreen() {
               { backgroundColor: isDark ? '#444444' : '#f0f0f0' }
             ]}>
               <Image
-                source={{ uri: item.imageUrl }}
+                source={{ uri: getFirebasePublicUrl(item.imageUrl) }}
                 style={styles.cardImage}
                 resizeMode="cover"
                 onError={(e) => {
@@ -297,7 +223,7 @@ export default function EventsScreen() {
                   </Text>
                 </View>
                 <Text style={styles.date}>
-                  {getRelativeTime(item.date)}
+                  {getRelativeTime(item.timestamp)}
                 </Text>
               </View>
             </View>
@@ -318,23 +244,8 @@ export default function EventsScreen() {
                   color={isDark ? '#888888' : '#666666'}
                 />
                 <Text style={styles.locationText}>
-                  {item.location}
+                  {item.location ? `${item.location.lat.toFixed(4)}, ${item.location.lng.toFixed(4)}` : 'Unknown location'}
                 </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 12, color: isDark ? '#CCCCCC' : '#666666', marginRight: 12 }}>
-                  Comments ({item.comments.length})
-                </Text>
-                <TouchableOpacity
-                  onPress={() => toggleBookmark(item.id)}
-                  style={styles.bookmarkButton}
-                >
-                  <Ionicons
-                    name={item.isBookmarked ? "bookmark" : "bookmark-outline"}
-                    size={24}
-                    color={isDark ? '#888888' : '#666666'}
-                  />
-                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -364,7 +275,35 @@ export default function EventsScreen() {
         <Text style={styles.error}>{error}</Text>
         <TouchableOpacity
           style={styles.retryButton}
-          onPress={loadEvents}
+          onPress={() => {
+            setLoading(true);
+            setError(null);
+            const q = query(collection(db, 'incidents'));
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+              const incidentsList = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                  id: doc.id,
+                  type: (data.type || 'UNKNOWN').toUpperCase(),
+                  title: data.title || 'Untitled',
+                  description: data.description || '',
+                  location: data.location || { lat: 0, lng: 0 },
+                  timestamp: typeof data.timestamp === 'string'
+                    ? data.timestamp
+                    : (data.timestamp && data.timestamp.toDate ? data.timestamp.toDate().toISOString() : ''),
+                  imageUrl: data.imageUrl || null,
+                };
+              });
+              console.log('Fetched incidents (MapScreen style):', incidentsList);
+              setEvents(incidentsList);
+              setLoading(false);
+            }, (err) => {
+              console.error('Error fetching incidents with onSnapshot:', err);
+              setError('Failed to load events');
+              setLoading(false);
+            });
+            return () => unsubscribe();
+          }}
         >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
@@ -446,7 +385,7 @@ export default function EventsScreen() {
                   paddingHorizontal: 18,
                   marginBottom: 10,
                 }}
-                onPress={() => toggleCategory(cat.type)}
+                onPress={() => toggleCategory(cat.type as EventType)}
               >
                 {cat.icon}
                 <Text style={{ fontWeight: '500', fontSize: 15, color: '#222' }}>{cat.label}</Text>

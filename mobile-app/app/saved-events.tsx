@@ -49,8 +49,8 @@ export default function SavedEventsScreen() {
         return;
       }
       // Fetch events by IDs
-      const eventsRef = collection(db, 'events');
-      const q = query(eventsRef, where('__name__', 'in', savedEvents.slice(0, 10)));
+      const incidentsRef = collection(db, 'incidents');
+      const q = query(incidentsRef, where('__name__', 'in', savedEvents.slice(0, 10)));
       // Firestore 'in' queries are limited to 10 items at a time
       const querySnapshot = await getDocs(q);
       const fetchedEvents: Event[] = [];
@@ -60,9 +60,9 @@ export default function SavedEventsScreen() {
           id: doc.id,
           title: data.title,
           description: data.description,
-          date: data.date,
-          location: data.location,
-          type: data.type,
+          date: data.timestamp,
+          location: data.location?.address || 'Unknown location',
+          type: data.type.toUpperCase(),
           imageUrl: data.imageUrl,
           isBookmarked: true,
           comments: data.comments || [],

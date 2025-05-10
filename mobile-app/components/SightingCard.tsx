@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getFirebasePublicUrl } from '@/services/firebase';
 
 interface SightingCardProps {
   id: string;
@@ -45,7 +46,7 @@ export function SightingCard({
       <ThemedView style={styles.card}>
         {imageUrl && (
           <Image
-            source={{ uri: imageUrl }}
+            source={{ uri: getFirebasePublicUrl(imageUrl) }}
             style={styles.image}
             contentFit="cover"
           />

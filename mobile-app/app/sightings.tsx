@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
-import { db } from '@/services/firebase';
+import { db, getFirebasePublicUrl } from '@/services/firebase';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -128,7 +128,14 @@ export default function SightingsScreen() {
         data={sightings}
         renderItem={({ item }) => (
           <SightingCard
-            {...item}
+            key={item.id}
+            id={item.id}
+            type={item.type}
+            title={item.title}
+            description={item.description}
+            imageUrl={(getFirebasePublicUrl(item.imageUrl) ?? null)}
+            timestamp={item.timestamp}
+            location={item.location}
             onShare={() => handleShare(item.id)}
           />
         )}

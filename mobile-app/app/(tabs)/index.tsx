@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, Platform, TextInput, Keyboard, Image, Modal } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { StyleSheet, View, TouchableOpacity, Platform, TextInput, Keyboard, Image, Modal, AppState } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getFirebasePublicUrl } from '@/services/firebase';
 
 type Incident = {
   id: string;
@@ -18,7 +20,7 @@ type Incident = {
     lat: number;
     lng: number;
   };
-  date: string;
+  timestamp: string;
   imageUrl?: string;
 };
 
@@ -75,10 +77,15 @@ export default function MapScreen() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredIncidents, setFilteredIncidents] = useState<Incident[]>([]);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [timeFilter, setTimeFilter] = useState<'ALL' | 'WEEK' | 'MONTH' | 'UPCOMING'>('ALL');
+  const [mapRegion, setMapRegion] = useState({
+    latitude: 33.979763142639406,
+    longitude: -118.46862699581484,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
+  });
 
   const incidentTypes = ['OCEAN', 'WILDLIFE', 'BOTANICAL', 'ASTRONOMY'];
 
@@ -91,40 +98,12 @@ export default function MapScreen() {
   };
 
   const applyFilters = () => {
-    let filtered = incidents;
-
-    // Apply type filter
-    if (selectedTypes.length > 0) {
-      filtered = filtered.filter(incident => selectedTypes.includes(incident.type));
-    }
-
-    // Apply time filter
-    const now = new Date();
-    filtered = filtered.filter(incident => {
-      const incidentDate = new Date(incident.date);
-      const diffTime = Math.abs(now.getTime() - incidentDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      switch (timeFilter) {
-        case 'WEEK':
-          return diffDays <= 7;
-        case 'MONTH':
-          return diffDays <= 30;
-        case 'UPCOMING':
-          return incidentDate > now;
-        default:
-          return true;
-      }
-    });
-
-    setFilteredIncidents(filtered);
     setIsFilterModalVisible(false);
   };
 
   const resetFilters = () => {
     setSelectedTypes([]);
     setTimeFilter('ALL');
-    setFilteredIncidents(incidents);
     setIsFilterModalVisible(false);
   };
 
@@ -414,6 +393,55 @@ export default function MapScreen() {
     },
   });
 
+  const filteredIncidents = useMemo(() => {
+    let filtered = [...incidents];  // Create a copy of incidents array
+
+    // Type filter - only apply if types are selected
+    if (selectedTypes.length > 0) {
+      filtered = filtered.filter(incident => selectedTypes.includes(incident.type));
+    }
+
+    // Time filter
+    const now = new Date();
+    filtered = filtered.filter(incident => {
+      const incidentDate = new Date(incident.timestamp);
+      const diffTime = Math.abs(now.getTime() - incidentDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      switch (timeFilter) {
+        case 'WEEK':
+          return diffDays <= 7;
+        case 'MONTH':
+          return diffDays <= 30;
+        case 'UPCOMING':
+          return incidentDate > now;
+        default:
+          return true;
+      }
+    });
+
+    // Search filter
+    if (searchQuery.trim() !== '') {
+      filtered = filtered.filter(incident =>
+        incident.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.type.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    return filtered;
+  }, [incidents, selectedTypes, timeFilter, searchQuery]);
+
+  const fetchIncidents = useCallback(async () => {
+    try {
+      const response = await fetch('http://192.168.50.2:3000/api/incidents');
+      const data = await response.json();
+      setIncidents(data);
+    } catch (err) {
+      setErrorMsg('Failed to load incidents');
+    }
+  }, []);
+
+  // Initial location and incidents fetch
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -425,31 +453,52 @@ export default function MapScreen() {
       let location = await Location.getCurrentPositionAsync({});
       setLocation(location);
 
-      // Fetch real incidents from backend
-      try {
-        const response = await fetch('http://192.168.50.2:3000/api/incidents');
-        const data = await response.json();
-        setIncidents(data);
-        setFilteredIncidents(data);
-      } catch (err) {
-        setErrorMsg('Failed to load incidents');
-      }
+      await fetchIncidents();
     })();
-  }, []);
+  }, [fetchIncidents]);
 
+  // Refresh incidents when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchIncidents();
+    }, [fetchIncidents])
+  );
+
+  // Add this useEffect to update map region when incidents change
   useEffect(() => {
-    // Filter incidents based on search query
-    if (searchQuery.trim() === '') {
-      setFilteredIncidents(incidents);
-    } else {
-      const filtered = incidents.filter(incident => 
-        incident.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        incident.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        incident.type.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredIncidents(filtered);
+    if (incidents.length > 0) {
+      // Calculate the center point of all incidents
+      const lats = incidents.map(inc => inc.location.lat);
+      const lngs = incidents.map(inc => inc.location.lng);
+      const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+      const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+      
+      // Calculate the delta to show all points with some padding
+      const latDelta = Math.max((Math.max(...lats) - Math.min(...lats)) * 1.5, 0.02);
+      const lngDelta = Math.max((Math.max(...lngs) - Math.min(...lngs)) * 1.5, 0.02);
+
+      const newRegion = {
+        latitude: centerLat,
+        longitude: centerLng,
+        latitudeDelta: latDelta,
+        longitudeDelta: lngDelta,
+      };
+      setMapRegion(newRegion);
     }
-  }, [searchQuery, incidents]);
+  }, [incidents]);
+
+  // Add AppState listener to refresh data when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        fetchIncidents();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [fetchIncidents]);
 
   const mapStyle = isDark ? [
     {
@@ -510,27 +559,13 @@ export default function MapScreen() {
 
           {location && (
             <MapView
+              key={`map-${mapRegion.latitude}-${mapRegion.longitude}`}
               style={styles.map}
               customMapStyle={mapStyle}
               onPress={() => Keyboard.dismiss()}
-              initialRegion={{
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-                latitudeDelta: 0.5,
-                longitudeDelta: 0.5,
-              }}>
-              {/* Current location marker */}
-              <Marker
-                coordinate={{
-                  latitude: location.coords.latitude,
-                  longitude: location.coords.longitude,
-                }}
-                pinColor="#2F855A">
-                <Callout>
-                  <ThemedText>You are here</ThemedText>
-                </Callout>
-              </Marker>
-
+              region={mapRegion}
+              showsUserLocation={true}
+              showsMyLocationButton={true}>
               {/* Incident markers */}
               {filteredIncidents.map((incident) => (
                 <Marker
@@ -546,7 +581,7 @@ export default function MapScreen() {
                         <ThemedText style={styles.calloutTitle}>{incident.title}</ThemedText>
                         {incident.imageUrl && (
                           <Image
-                            source={{ uri: incident.imageUrl }}
+                            source={{ uri: getFirebasePublicUrl(incident.imageUrl) }}
                             style={{ width: 180, height: 100, borderRadius: 8, marginBottom: 8 }}
                             resizeMode="cover"
                           />

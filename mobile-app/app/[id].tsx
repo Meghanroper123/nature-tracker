@@ -3,10 +3,12 @@ import { StyleSheet, View, Image, ScrollView, TextInput, TouchableOpacity, Platf
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getFirebasePublicUrl } from '@/services/firebase';
 
 interface Comment {
   id: string;
@@ -18,17 +20,12 @@ interface Comment {
 
 interface Event {
   id: string;
+  type: string;
   title: string;
   description: string;
-  date: string;
-  location: {
-    lat: number;
-    lng: number;
-    description: string;
-  };
-  type: string;
-  imageUrl: string;
-  comments: Comment[];
+  location: { lat: number; lng: number };
+  timestamp: string;
+  imageUrl?: string | null;
 }
 
 export default function EventDetailScreen() {
@@ -38,85 +35,30 @@ export default function EventDetailScreen() {
   const isDark = colorScheme === 'dark';
   
   const [event, setEvent] = useState<Event | null>(null);
-  const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadEventDetails();
+    fetchComments();
   }, [id]);
 
   const loadEventDetails = async () => {
     try {
       setLoading(true);
       setError(null);
-      // TODO: Replace with actual API call
-      const mockEvents: Record<string, Event> = {
-        '1': {
-          id: '1',
-          title: 'Bioluminescence',
-          description: 'Bioluminescent waves in Santa Monica',
-          date: new Date().toISOString(),
-          location: {
-            lat: 34.0095,
-            lng: -118.4969,
-            description: 'Santa Monica Beach'
-          },
-          type: 'OCEAN',
-          imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e',
-          comments: [
-            {
-              id: '1',
-              userId: 'user1',
-              username: 'JohnDoe',
-              text: 'Amazing sight! I saw this too last night.',
-              timestamp: new Date(Date.now() - 3600000).toISOString()
-            }
-          ]
-        },
-        '2': {
-          id: '2',
-          title: 'Whale Migration',
-          description: 'Whales migrating in the Bay',
-          date: new Date().toISOString(),
-          location: {
-            lat: 34.0195,
-            lng: -118.4912,
-            description: 'Santa Monica Bay'
-          },
-          type: 'WILDLIFE',
-          imageUrl: 'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5',
-          comments: [
-            {
-              id: '2',
-              userId: 'user2',
-              username: 'JaneSmith',
-              text: 'Saw a pod of whales this morning!',
-              timestamp: new Date(Date.now() - 7200000).toISOString()
-            }
-          ]
-        },
-        '3': {
-          id: '3',
-          title: 'Superbloom',
-          description: 'Superbloom in Santa Monica',
-          date: new Date().toISOString(),
-          location: {
-            lat: 34.1095,
-            lng: -118.6012,
-            description: 'Santa Monica Mountains'
-          },
-          type: 'BOTANICAL',
-          imageUrl: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946',
-          comments: []
-        }
-      };
-
-      const event = mockEvents[id as string];
-      if (!event) {
+      // Fetch from backend API
+      const response = await fetch(`http://192.168.50.2:3000/api/incidents`);
+      const data = await response.json();
+      console.log('Fetched incidents from API:', data);
+      const found = data.find((incident: Event) => incident.id === id);
+      if (!found) {
         throw new Error('Event not found');
       }
-      setEvent(event);
+      setEvent(found);
     } catch (err) {
       console.error('Error loading event details:', err);
       setError('Failed to load event details');
@@ -125,31 +67,41 @@ export default function EventDetailScreen() {
     }
   };
 
+  const fetchComments = async () => {
+    try {
+      const response = await fetch(`http://192.168.50.2:3000/api/incidents/${id}/comments`);
+      const data = await response.json();
+      setComments(data);
+    } catch (err) {
+      console.error('Error fetching comments:', err);
+    }
+  };
+
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
-    
+    setSubmitting(true);
     try {
-      // TODO: Replace with actual API call
-      const comment: Comment = {
-        id: Date.now().toString(),
-        userId: 'currentUser',
-        username: 'CurrentUser',
+      // Get user info (customize as needed)
+      const userData = await AsyncStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : { id: 'anon', name: 'Anonymous' };
+      const body = {
+        userId: user.id,
+        username: user.name || 'Anonymous',
         text: newComment,
-        timestamp: new Date().toISOString()
       };
-      
-      setEvent(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          comments: [...prev.comments, comment]
-        };
+      const response = await fetch(`http://192.168.50.2:3000/api/incidents/${id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
-      
-      setNewComment('');
+      if (response.ok) {
+        setNewComment('');
+        fetchComments();
+      }
     } catch (err) {
       console.error('Error adding comment:', err);
-      // Show error toast or message
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -204,7 +156,7 @@ export default function EventDetailScreen() {
 
             {/* Main image */}
             <Image
-              source={{ uri: event.imageUrl }}
+              source={{ uri: getFirebasePublicUrl(event.imageUrl) }}
               style={styles.mainImage}
               resizeMode="cover"
             />
@@ -220,7 +172,7 @@ export default function EventDetailScreen() {
                 </View>
               </View>
 
-              <ThemedText style={styles.date}>{formatDate(event.date)}</ThemedText>
+              <ThemedText style={styles.date}>{formatDate(event.timestamp)}</ThemedText>
               <ThemedText style={styles.description}>{event.description}</ThemedText>
 
               {/* Map view */}
@@ -233,6 +185,11 @@ export default function EventDetailScreen() {
                     latitudeDelta: 0.01,
                     longitudeDelta: 0.01,
                   }}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  pitchEnabled={false}
+                  rotateEnabled={false}
+                  toolbarEnabled={false}
                 >
                   <Marker
                     coordinate={{
@@ -240,54 +197,36 @@ export default function EventDetailScreen() {
                       longitude: event.location.lng,
                     }}
                     title={event.title}
-                    description={event.location.description}
+                    description={event.description}
                   />
                 </MapView>
               </View>
-
-              {/* Comments section */}
-              <View style={styles.commentsSection}>
-                <ThemedText style={styles.commentsHeader}>
-                  Comments ({event.comments.length})
-                </ThemedText>
-                
-                {event.comments.map(comment => (
-                  <View key={comment.id} style={styles.commentItem}>
-                    <View style={styles.commentHeader}>
-                      <ThemedText style={styles.commentUsername}>{comment.username}</ThemedText>
-                      <ThemedText style={styles.commentTime}>
-                        {formatRelativeTime(comment.timestamp)}
-                      </ThemedText>
-                    </View>
-                    <ThemedText style={styles.commentText}>{comment.text}</ThemedText>
-                  </View>
-                ))}
-              </View>
             </View>
 
-            {/* Comment input */}
-            <View style={styles.commentInputContainer}>
-              <TextInput
-                style={[
-                  styles.commentInput,
-                  { backgroundColor: isDark ? '#333333' : '#F0F0F0' }
-                ]}
-                placeholder="Add a comment..."
-                placeholderTextColor={isDark ? '#888888' : '#666666'}
-                value={newComment}
-                onChangeText={setNewComment}
-                multiline
-              />
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  { opacity: newComment.trim() ? 1 : 0.5 }
-                ]}
-                onPress={handleAddComment}
-                disabled={!newComment.trim()}
-              >
-                <Ionicons name="send" size={24} color="#4CAF50" />
-              </TouchableOpacity>
+            {/* Comments section */}
+            <View style={{ marginTop: 20 }}>
+              <ThemedText style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>
+                Comments ({comments.length})
+              </ThemedText>
+              {comments.map(comment => (
+                <View key={comment.id} style={{ marginBottom: 12, padding: 8, backgroundColor: '#f0f0f0', borderRadius: 8 }}>
+                  <ThemedText style={{ fontWeight: '600' }}>{comment.username}</ThemedText>
+                  <ThemedText style={{ fontSize: 12, opacity: 0.7 }}>{formatRelativeTime(comment.timestamp)}</ThemedText>
+                  <ThemedText>{comment.text}</ThemedText>
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                <TextInput
+                  style={{ flex: 1, backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, marginRight: 8 }}
+                  placeholder="Add a comment..."
+                  value={newComment}
+                  onChangeText={setNewComment}
+                  editable={!submitting}
+                />
+                <TouchableOpacity onPress={handleAddComment} disabled={!newComment.trim() || submitting}>
+                  <Ionicons name="send" size={24} color="#4CAF50" />
+                </TouchableOpacity>
+              </View>
             </View>
           </ScrollView>
         </ThemedView>
@@ -428,69 +367,6 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
-  },
-  commentsSection: {
-    marginTop: 20,
-  },
-  commentsHeader: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  commentItem: {
-    marginBottom: 16,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: Platform.select({
-      ios: 'rgba(0, 0, 0, 0.05)',
-      android: 'rgba(0, 0, 0, 0.05)',
-      default: '#F0F0F0',
-    }),
-  },
-  commentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  commentUsername: {
-    fontWeight: '600',
-  },
-  commentTime: {
-    fontSize: 12,
-    opacity: 0.6,
-  },
-  commentText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  commentInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: Platform.select({
-      ios: 'rgba(0, 0, 0, 0.1)',
-      android: 'rgba(0, 0, 0, 0.1)',
-      default: '#E5E5E5',
-    }),
-  },
-  commentInput: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    fontSize: 16,
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   error: {
     color: '#E53E3E',

@@ -306,17 +306,24 @@ async function fetchNotifications(timeFilter = '1month') {
                 break;
         }
         
-        // Get recent events based on the time filter
-        const response = await fetch(`/api/incidents?eventType=current&timeFilter=${apiTimeFilter}`);
+        // Get recent incidents based on the time filter
+        const response = await fetch(`/api/incidents?timeFilter=${apiTimeFilter}`);
         
         if (!response.ok) {
             throw new Error(`Error: ${response.status}`);
         }
         
-        const events = await response.json();
+        const incidents = await response.json();
         
-        // Generate mock notifications data
-        const notifications = generateMockNotifications(events);
+        // Convert incidents to notifications format
+        const notifications = incidents.map(incident => ({
+            id: incident.id,
+            type: incident.type,
+            title: incident.title,
+            description: incident.description,
+            timestamp: incident.timestamp,
+            imageUrl: incident.imageUrl
+        }));
         
         displayNotifications(notifications);
     } catch (error) {

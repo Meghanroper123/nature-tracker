@@ -249,30 +249,77 @@ export default function AddSightingScreen() {
   };
 
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Please grant camera roll permissions to add photos');
-      return;
-    }
+    Alert.alert(
+      'Add Photo',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission Required', 'Please grant camera permissions to take photos');
+              return;
+            }
 
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 1,
-      });
+            try {
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 1,
+              });
 
-      if (!result.canceled && result.assets) {
-        setFormData(prev => ({
-          ...prev,
-          image: result.assets[0].uri,
-        }));
-        setFormErrors(prev => ({ ...prev, image: undefined }));
-      }
-    } catch (err) {
-      setError('Failed to pick image. Please try again.');
-    }
+              if (!result.canceled && result.assets) {
+                setFormData(prev => ({
+                  ...prev,
+                  image: result.assets[0].uri,
+                }));
+                setFormErrors(prev => ({ ...prev, image: undefined }));
+              }
+            } catch (err) {
+              console.error('Error taking photo:', err);
+              Alert.alert('Error', 'Failed to take photo. Please try again.');
+            }
+          },
+        },
+        {
+          text: 'Choose from Library',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission Required', 'Please grant camera roll permissions to add photos');
+              return;
+            }
+
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 1,
+              });
+
+              if (!result.canceled && result.assets) {
+                setFormData(prev => ({
+                  ...prev,
+                  image: result.assets[0].uri,
+                }));
+                setFormErrors(prev => ({ ...prev, image: undefined }));
+              }
+            } catch (err) {
+              console.error('Error picking image:', err);
+              Alert.alert('Error', 'Failed to pick image. Please try again.');
+            }
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleSubmit = async () => {
@@ -318,6 +365,18 @@ export default function AddSightingScreen() {
 
       const savedIncident = await response.json();
       console.log('Incident saved:', savedIncident);
+      
+      // Reset form data
+      setFormData({
+        type: '',
+        title: '',
+        description: '',
+        image: null,
+        location: null,
+      });
+      setFormErrors({});
+      setError(null);
+      
       router.back();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save incident. Please try again.');
@@ -353,7 +412,19 @@ export default function AddSightingScreen() {
   );
 
   const handleSaveLocation = () => {
-    setFormData(prev => ({ ...prev, location: { latitude: mapRegion.latitude, longitude: mapRegion.longitude } }));
+    // Only update if the mapRegion is different from the previous location
+    if (
+      formData.location &&
+      formData.location.latitude === mapRegion.latitude &&
+      formData.location.longitude === mapRegion.longitude
+    ) {
+      setEditingLocation(false);
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      location: { latitude: mapRegion.latitude, longitude: mapRegion.longitude }
+    }));
     setEditingLocation(false);
   };
 
