@@ -1,7 +1,5 @@
 const bcrypt = require('bcrypt');
-const { adminDb } = require('../config/firebase');
-const { collection, doc, getDoc, setDoc, query, where, getDocs } = require('firebase/firestore');
-const { db } = require('../config/firebase');
+const admin = require('firebase-admin');
 
 class User {
   constructor(userData) {
@@ -33,7 +31,7 @@ class User {
     
     // Generate an id if this is a new user
     if (!this._id) {
-      this._id = doc(collection(db, 'users')).id;
+      this._id = admin.firestore().collection('users').doc().id;
     }
     
     // Convert to a Firestore-friendly object
@@ -50,7 +48,7 @@ class User {
     };
     
     // Save to Firestore
-    await setDoc(doc(db, 'users', this._id), userObject);
+    await admin.firestore().collection('users').doc(this._id).set(userObject);
     
     return this;
   }
@@ -75,24 +73,21 @@ class User {
   // Static methods
   static async findOne(queryParams) {
     try {
+      let query = admin.firestore().collection('users');
+      
       if (queryParams.email) {
-        const userQuery = query(collection(db, 'users'), where('email', '==', queryParams.email));
-        const querySnapshot = await getDocs(userQuery);
-        
-        if (!querySnapshot.empty) {
-          const userData = querySnapshot.docs[0].data();
-          return new User(userData);
-        }
+        query = query.where('email', '==', queryParams.email);
       }
       
       if (queryParams.googleId) {
-        const userQuery = query(collection(db, 'users'), where('googleId', '==', queryParams.googleId));
-        const querySnapshot = await getDocs(userQuery);
-        
-        if (!querySnapshot.empty) {
-          const userData = querySnapshot.docs[0].data();
-          return new User(userData);
-        }
+        query = query.where('googleId', '==', queryParams.googleId);
+      }
+      
+      const querySnapshot = await query.get();
+      
+      if (!querySnapshot.empty) {
+        const userData = querySnapshot.docs[0].data();
+        return new User(userData);
       }
       
       return null;
@@ -104,10 +99,10 @@ class User {
   
   static async findById(id) {
     try {
-      const docRef = doc(db, 'users', id);
-      const docSnap = await getDoc(docRef);
+      const docRef = admin.firestore().collection('users').doc(id);
+      const docSnap = await docRef.get();
       
-      if (docSnap.exists()) {
+      if (docSnap.exists) {
         const userData = docSnap.data();
         return new User(userData);
       }

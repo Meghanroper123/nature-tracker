@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Image,
+  FlatList,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -15,32 +16,67 @@ import { db, storage } from '../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 
 const AddIncidentScreen = ({ navigation }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('wildlife');
-  const [image, setImage] = useState(null);
+  const [mediaFiles, setMediaFiles] = useState([]);
   const [location, setLocation] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const pickImage = async () => {
+  const pickMedia = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant camera roll permissions to upload images.');
+      Alert.alert('Permission needed', 'Please grant media library permissions to upload files.');
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
+    Alert.alert(
+      'Add Media',
+      'Choose media type',
+      [
+        {
+          text: 'Photo',
+          onPress: async () => {
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [4, 3],
+              quality: 0.8,
+            });
 
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
-    }
+            if (!result.canceled && result.assets) {
+              setMediaFiles(prev => [...prev, { uri: result.assets[0].uri, type: 'image' }]);
+            }
+          },
+        },
+        {
+          text: 'Video',
+          onPress: async () => {
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+              allowsEditing: true,
+              quality: 1,
+              videoMaxDuration: 30, // 30 seconds limit
+            });
+
+            if (!result.canceled && result.assets) {
+              setMediaFiles(prev => [...prev, { uri: result.assets[0].uri, type: 'video' }]);
+            }
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const removeMedia = (index) => {
+    setMediaFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const getLocation = async () => {
@@ -57,7 +93,7 @@ const AddIncidentScreen = ({ navigation }) => {
     });
   };
 
-  const uploadImage = async (uri) => {
+  const uploadMedia = async (uri, type) => {
     const response = await fetch(uri);
     const blob = await response.blob();
     const filename = uri.substring(uri.lastIndexOf('/') + 1);
@@ -72,22 +108,32 @@ const AddIncidentScreen = ({ navigation }) => {
       return;
     }
 
+    if (mediaFiles.length === 0) {
+      Alert.alert('Error', 'Please add at least one photo or video.');
+      return;
+    }
+
     setLoading(true);
     try {
       const userData = await AsyncStorage.getItem('user');
       const user = JSON.parse(userData);
 
-      let imageUrl = null;
-      if (image) {
-        imageUrl = await uploadImage(image);
-      }
+      const uploadedMedia = await Promise.all(
+        mediaFiles.map(async (file) => {
+          const url = await uploadMedia(file.uri, file.type);
+          return {
+            url,
+            type: file.type,
+          };
+        })
+      );
 
       const incidentData = {
         title,
         description,
         type,
         location,
-        imageUrl,
+        mediaFiles: uploadedMedia,
         userId: user.id,
         timestamp: new Date(),
       };
@@ -103,6 +149,24 @@ const AddIncidentScreen = ({ navigation }) => {
       setLoading(false);
     }
   };
+
+  const renderMediaItem = ({ item, index }) => (
+    <View style={styles.mediaItem}>
+      {item.type === 'image' ? (
+        <Image source={{ uri: item.uri }} style={styles.mediaPreview} />
+      ) : (
+        <View style={styles.videoPreview}>
+          <Ionicons name="videocam" size={24} color="white" />
+        </View>
+      )}
+      <TouchableOpacity
+        style={styles.removeMediaButton}
+        onPress={() => removeMedia(index)}
+      >
+        <Ionicons name="close-circle" size={24} color="red" />
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <ScrollView style={styles.container}>
@@ -158,23 +222,25 @@ const AddIncidentScreen = ({ navigation }) => {
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.label}>Image (Optional)</Text>
+        <Text style={styles.label}>Media (Up to 5 files) *</Text>
         <TouchableOpacity
-          style={styles.imageButton}
-          onPress={pickImage}
+          style={styles.mediaButton}
+          onPress={pickMedia}
+          disabled={mediaFiles.length >= 5}
         >
-          <Text style={styles.imageButtonText}>
-            {image ? 'Change Image' : 'Select Image'}
+          <Text style={styles.mediaButtonText}>
+            {mediaFiles.length >= 5 ? 'Maximum files reached' : 'Add Photo/Video'}
           </Text>
         </TouchableOpacity>
 
-        {image && (
-          <Image
-            source={{ uri: image }}
-            style={styles.previewImage}
-            resizeMode="cover"
-          />
-        )}
+        <FlatList
+          data={mediaFiles}
+          renderItem={renderMediaItem}
+          keyExtractor={(_, index) => index.toString()}
+          horizontal
+          style={styles.mediaList}
+          contentContainerStyle={styles.mediaListContent}
+        />
 
         <TouchableOpacity
           style={styles.submitButton}
@@ -251,22 +317,46 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
-  imageButton: {
+  mediaButton: {
     backgroundColor: '#FF9800',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 16,
   },
-  imageButtonText: {
+  mediaButtonText: {
     color: '#fff',
     fontWeight: 'bold',
   },
-  previewImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
+  mediaList: {
     marginBottom: 16,
+  },
+  mediaListContent: {
+    paddingRight: 16,
+  },
+  mediaItem: {
+    marginRight: 8,
+    position: 'relative',
+  },
+  mediaPreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+  },
+  videoPreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: '#666',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeMediaButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: 'white',
+    borderRadius: 12,
   },
   submitButton: {
     backgroundColor: '#4CAF50',

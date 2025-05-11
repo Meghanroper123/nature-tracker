@@ -15,9 +15,11 @@
     "preset": "jest-expo"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "^1.24.0",
+    "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-native-community/datetimepicker": "^8.3.0",
     "expo": "^53.0.9",
     "expo-auth-session": "~6.1.5",
+    "expo-av": "~15.1.4",
     "expo-image": "~2.1.7",
     "expo-image-picker": "~16.1.4",
     "expo-location": "^18.1.4",
@@ -34,6 +36,7 @@
     "react-native-gesture-handler": "~2.24.0",
     "react-native-google-places-autocomplete": "^2.5.7",
     "react-native-maps": "1.20.1",
+    "react-native-modal-datetime-picker": "^18.0.0",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.10.0",

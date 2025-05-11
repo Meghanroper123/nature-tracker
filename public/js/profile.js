@@ -166,42 +166,7 @@ function setupEventListeners() {
     document.querySelector('.auth-form-login form').addEventListener('submit', handleLoginSubmit);
     
     // Handle register form submission
-    document.querySelector('.auth-form-register form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const name = document.querySelector('#register-name').value;
-        const email = document.querySelector('#register-email').value;
-        const password = document.querySelector('#register-password').value;
-        const confirmPassword = document.querySelector('#register-confirm-password').value;
-        
-        // Validate passwords match
-        if (password !== confirmPassword) {
-            showAuthMessage('error', 'Passwords do not match');
-            return;
-        }
-        
-        // Disable form during registration attempt
-        const submitButton = e.target.querySelector('button[type="submit"]');
-        const originalButtonText = submitButton.textContent;
-        submitButton.disabled = true;
-        submitButton.textContent = 'Registering...';
-        
-        try {
-            const user = await NatureTrackerAuth.registerUser(name, email, password);
-            
-            // Update UI
-            displayUserProfile(user);
-            
-            // Show success message
-            showMessage('success', 'Registered successfully');
-        } catch (error) {
-            showAuthMessage('error', error.message || 'Registration failed');
-        } finally {
-            // Re-enable form
-            submitButton.disabled = false;
-            submitButton.textContent = originalButtonText;
-        }
-    });
+    document.querySelector('.auth-form-register form').addEventListener('submit', handleRegisterSubmit);
     
     // Handle logout
     document.querySelector('.logout-btn').addEventListener('click', async (e) => {
@@ -366,6 +331,45 @@ const handleLoginSubmit = async (e) => {
     } catch (error) {
         console.error('Login error:', error);
         showAuthMessage('error', error.message || 'Login failed. Please check your credentials and try again.');
+    } finally {
+        // Re-enable form
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
+    }
+};
+
+// Handle registration form submission
+const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+    
+    const name = document.querySelector('#register-name').value;
+    const email = document.querySelector('#register-email').value;
+    const password = document.querySelector('#register-password').value;
+    const confirmPassword = document.querySelector('#register-confirm-password').value;
+    
+    // Validate passwords match
+    if (password !== confirmPassword) {
+        showAuthMessage('error', 'Passwords do not match');
+        return;
+    }
+    
+    // Disable form during registration attempt
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Creating account...';
+    
+    try {
+        const user = await NatureTrackerAuth.registerUser(name, email, password);
+        
+        // Update UI
+        displayUserProfile(user);
+        
+        // Show success message
+        showMessage('success', 'Account created successfully');
+    } catch (error) {
+        console.error('Registration error:', error);
+        showAuthMessage('error', error.message || 'Registration failed. Please try again.');
     } finally {
         // Re-enable form
         submitButton.disabled = false;

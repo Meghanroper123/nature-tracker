@@ -13,12 +13,12 @@ interface SightingCardProps {
   id: string;
   type: string;
   title: string;
-  description: string;
+  description?: string;
   imageUrl: string | null;
   timestamp: string;
   location: {
-    latitude: number;
-    longitude: number;
+    lat: number;
+    lng: number;
   };
   onShare?: () => void;
 }
@@ -63,9 +63,11 @@ export function SightingCard({
             </TouchableOpacity>
           </View>
           <ThemedText style={styles.type}>{type}</ThemedText>
-          <ThemedText style={styles.description} numberOfLines={2}>
-            {description}
-          </ThemedText>
+          {description && (
+            <ThemedText style={styles.description} numberOfLines={2}>
+              {description}
+            </ThemedText>
+          )}
           <View style={styles.footer}>
             <View style={styles.footerLeft}>
               <Ionicons
@@ -84,7 +86,7 @@ export function SightingCard({
                 style={styles.icon}
               />
               <ThemedText style={styles.location}>
-                {location.latitude.toFixed(2)}, {location.longitude.toFixed(2)}
+                {location.lat.toFixed(2)}, {location.lng.toFixed(2)}
               </ThemedText>
             </View>
           </View>

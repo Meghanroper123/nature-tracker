@@ -6,9 +6,11 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { SightingCard } from '@/components/SightingCard';
+
+const DEV_USER_ID = 'dev-user-123';
 
 interface Sighting {
   id: string;
@@ -18,8 +20,8 @@ interface Sighting {
   imageUrl: string | null;
   timestamp: string;
   location: {
-    latitude: number;
-    longitude: number;
+    lat: number;
+    lng: number;
   };
 }
 
@@ -33,6 +35,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (user) {
+      console.log('Current user UID:', user.uid);
       loadRecentSightings();
     }
   }, [user]);
@@ -40,14 +43,16 @@ export default function ProfileScreen() {
   const loadRecentSightings = async () => {
     try {
       setSightingsLoading(true);
+      const effectiveUserId = user?.uid || DEV_USER_ID;
+      console.log('Querying sightings for userId:', effectiveUserId);
       const q = query(
-        collection(db, 'sightings'),
-        where('userId', '==', user?.uid),
-        orderBy('timestamp', 'desc'),
-        limit(3)
+        collection(db, 'incidents'),
+        where('userId', '==', effectiveUserId),
+        orderBy('timestamp', 'desc')
       );
 
       const querySnapshot = await getDocs(q);
+      console.log('Number of sightings found:', querySnapshot.size);
       const sightings: Sighting[] = [];
 
       querySnapshot.forEach((doc) => {
@@ -58,7 +63,7 @@ export default function ProfileScreen() {
           title: data.title,
           description: data.description,
           imageUrl: data.imageUrl,
-          timestamp: data.timestamp?.toDate().toISOString() || new Date().toISOString(),
+          timestamp: data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : data.timestamp || new Date().toISOString(),
           location: data.location,
         });
       });
@@ -72,10 +77,10 @@ export default function ProfileScreen() {
   };
 
   const handleSightingsPress = () => {
-    if (!user) return;
+    const effectiveUserId = user?.uid || DEV_USER_ID;
     router.push({
       pathname: '/sightings',
-      params: { userId: user.uid }
+      params: { userId: effectiveUserId }
     });
   };
 
@@ -87,7 +92,7 @@ export default function ProfileScreen() {
     );
   }
 
-  if (!user) {
+  if (!user && !__DEV__) {
     return (
       <ThemedView style={styles.container}>
         <ThemedText>Please sign in to view your profile</ThemedText>
@@ -103,94 +108,24 @@ export default function ProfileScreen() {
           <View style={[styles.profileIcon, { backgroundColor: isDark ? '#2B4C34' : '#E6F5ED' }]}>
             <Ionicons name="person" size={64} color={isDark ? '#80CFA9' : '#2F855A'} />
           </View>
-          <ThemedText style={styles.name}>{user.displayName || 'Anonymous User'}</ThemedText>
-          <ThemedText style={styles.email}>{user.email}</ThemedText>
+          <ThemedText style={styles.name}>
+            {user?.displayName || (__DEV__ ? 'Development User' : 'Anonymous User')}
+          </ThemedText>
+          <ThemedText style={styles.email}>
+            {user?.email || (__DEV__ ? 'dev@example.com' : '')}
+          </ThemedText>
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: isDark ? '#333333' : '#FFFFFF' }]}
-            onPress={handleSightingsPress}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: isDark ? '#2B4C34' : '#E6F5ED' }]}>
-              <Ionicons name="location" size={24} color={isDark ? '#80CFA9' : '#2F855A'} />
+        {/* My Sightings Section */}
+        <TouchableOpacity style={[styles.card, { backgroundColor: isDark ? '#222' : '#fff' }]} onPress={handleSightingsPress} activeOpacity={0.8}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="location" size={28} color={isDark ? '#80CFA9' : '#2F855A'} style={{ marginRight: 12 }} />
+            <View>
+              <ThemedText style={styles.cardTitle}>My Sightings</ThemedText>
+              <ThemedText style={styles.cardSubtitle}>View your wildlife sightings</ThemedText>
             </View>
-            <View style={styles.actionContent}>
-              <ThemedText style={styles.actionTitle}>My Sightings</ThemedText>
-              <ThemedText style={styles.actionSubtitle}>View your wildlife sightings</ThemedText>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: isDark ? '#333333' : '#FFFFFF' }]}
-            onPress={() => router.push('/saved-events')}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: isDark ? '#2B4C34' : '#E6F5ED' }]}>
-              <Ionicons name="calendar" size={24} color={isDark ? '#80CFA9' : '#2F855A'} />
-            </View>
-            <View style={styles.actionContent}>
-              <ThemedText style={styles.actionTitle}>Saved Events</ThemedText>
-              <ThemedText style={styles.actionSubtitle}>View your saved events</ThemedText>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: isDark ? '#333333' : '#FFFFFF' }]}
-            onPress={() => router.push('/notifications')}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: isDark ? '#2B4C34' : '#E6F5ED' }]}>
-              <Ionicons name="notifications" size={24} color={isDark ? '#80CFA9' : '#2F855A'} />
-            </View>
-            <View style={styles.actionContent}>
-              <ThemedText style={styles.actionTitle}>Notifications</ThemedText>
-              <ThemedText style={styles.actionSubtitle}>Manage your notifications</ThemedText>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: isDark ? '#333333' : '#FFFFFF' }]}
-            onPress={() => router.push('/settings')}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: isDark ? '#2B4C34' : '#E6F5ED' }]}>
-              <Ionicons name="settings" size={24} color={isDark ? '#80CFA9' : '#2F855A'} />
-            </View>
-            <View style={styles.actionContent}>
-              <ThemedText style={styles.actionTitle}>Settings</ThemedText>
-              <ThemedText style={styles.actionSubtitle}>App preferences and settings</ThemedText>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Recent Sightings */}
-        <View style={styles.sightingsSection}>
-          <View style={styles.sectionHeader}>
-            <ThemedText style={styles.sectionTitle}>Recent Sightings</ThemedText>
-            <TouchableOpacity onPress={handleSightingsPress}>
-              <ThemedText style={styles.seeAllText}>See All</ThemedText>
-            </TouchableOpacity>
           </View>
-
-          {sightingsLoading ? (
-            <ThemedText>Loading recent sightings...</ThemedText>
-          ) : recentSightings.length > 0 ? (
-            <FlatList
-              data={recentSightings}
-              renderItem={({ item }) => (
-                <SightingCard
-                  {...item}
-                  onShare={() => {}}
-                />
-              )}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-            />
-          ) : (
-            <ThemedText style={styles.emptyText}>
-              No sightings yet. Start by adding your first nature sighting!
-            </ThemedText>
-          )}
-        </View>
+        </TouchableOpacity>
       </ScrollView>
     </ThemedView>
   );
@@ -225,67 +160,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     opacity: 0.7,
   },
-  actionsContainer: {
-    padding: 16,
+  card: {
+    backgroundColor: '#222',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  actionButton: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    marginBottom: 12,
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  actionContent: {
-    flex: 1,
-  },
-  actionTitle: {
+  cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  actionSubtitle: {
+  cardSubtitle: {
     fontSize: 14,
     opacity: 0.7,
   },
-  sightingsSection: {
-    padding: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  seeAllText: {
-    color: '#2F855A',
-    fontSize: 16,
+  loadingText: {
+    fontSize: 14,
+    color: '#aaa',
+    marginTop: 8,
   },
   emptyText: {
-    textAlign: 'center',
-    opacity: 0.7,
-    marginTop: 16,
+    fontSize: 14,
+    color: '#aaa',
+    marginTop: 8,
+  },
+  sightingsList: {
+    paddingVertical: 8,
+  },
+  sightingCard: {
+    marginBottom: 12,
   },
 }); 

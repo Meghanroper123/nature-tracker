@@ -63,18 +63,38 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  const renderIncident = ({ item }) => (
-    <TouchableOpacity
-      style={styles.incidentCard}
-      onPress={() => navigation.navigate('IncidentDetails', { incident: item })}
-    >
-      <Text style={styles.incidentTitle}>{item.title}</Text>
-      <Text style={styles.incidentType}>{item.type}</Text>
-      <Text style={styles.incidentDate}>
-        {new Date(item.timestamp?.toDate()).toLocaleDateString()}
-      </Text>
-    </TouchableOpacity>
-  );
+  const getFirstImageUrl = (mediaFiles, imageUrl) => {
+    if (Array.isArray(mediaFiles)) {
+      const firstImage = mediaFiles.find(
+        m => m && typeof m === 'object' && m.type && m.type.toLowerCase() === 'image' && m.url
+      );
+      if (firstImage) return firstImage.url;
+    }
+    return imageUrl || null;
+  };
+
+  const renderIncident = ({ item }) => {
+    const imageToShow = getFirstImageUrl(item.mediaFiles, item.imageUrl);
+    return (
+      <TouchableOpacity
+        style={styles.incidentCard}
+        onPress={() => navigation.navigate('IncidentDetails', { incident: item })}
+      >
+        {imageToShow && (
+          <Image
+            source={{ uri: imageToShow }}
+            style={{ width: '100%', height: 180, borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
+            resizeMode="cover"
+          />
+        )}
+        <Text style={styles.incidentTitle}>{item.title}</Text>
+        <Text style={styles.incidentType}>{item.type}</Text>
+        <Text style={styles.incidentDate}>
+          {new Date(item.timestamp?.toDate()).toLocaleDateString()}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (

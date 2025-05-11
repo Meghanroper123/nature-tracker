@@ -4,7 +4,12 @@ const multer = require('multer');
 const { Storage } = require('@google-cloud/storage');
 const path = require('path');
 const admin = require('firebase-admin');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 require('dotenv').config();
+
+// Set ffmpeg path
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,99 +41,162 @@ const db = admin.firestore();
 const bucket = admin.storage().bucket();
 
 // Multer setup for file uploads
-const upload = multer({ storage: multer.memoryStorage() });
-
-// API Routes
-app.get('/api/sightings', async (req, res) => {
-  try {
-    const { userId } = req.query;
-    let sightingsRef = db.collection('sightings');
-    let query = sightingsRef;
-    if (userId) {
-      query = query.where('userId', '==', userId);
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit for videos
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images and videos are allowed'));
     }
-    query = query.orderBy('createdAt', 'desc');
-    const snapshot = await query.get();
-    const sightings = [];
-    snapshot.forEach(doc => {
-      sightings.push({ id: doc.id, ...doc.data() });
-    });
-    res.json(sightings);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching sightings', error: error.message });
   }
 });
 
-app.post('/api/incidents', upload.single('image'), async (req, res) => {
+// API Routes
+app.get('/api/incidents', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    let incidentsRef = db.collection('incidents');
+    let query = incidentsRef;
+    if (userId) {
+      query = query.where('userId', '==', userId);
+    } else {
+      // For development, if no userId is provided, show dev-user-123's incidents
+      query = query.where('userId', '==', 'dev-user-123');
+    }
+    query = query.orderBy('timestamp', 'desc');
+    const snapshot = await query.get();
+    const incidents = [];
+    snapshot.forEach(doc => {
+      incidents.push({ id: doc.id, ...doc.data() });
+    });
+    res.json(incidents);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching incidents', error: error.message });
+  }
+});
+
+app.post('/api/incidents', upload.array('mediaFiles', 5), async (req, res) => {
   console.log('Received POST /api/incidents');
   console.log('Body:', req.body);
-  console.log('File:', req.file);
+  console.log('Files:', req.files);
   try {
-    const { type, title, description, lat, lng, userId } = req.body;
-    let imageUrl = null;
-    // Upload image to Firebase Storage if present
-    if (req.file) {
-      const blob = bucket.file(`incidents/${Date.now()}_${req.file.originalname}`);
-      const blobStream = blob.createWriteStream({ resumable: false });
-      blobStream.end(req.file.buffer);
-      await new Promise((resolve, reject) => {
-        blobStream.on('finish', resolve);
-        blobStream.on('error', reject);
-      });
-      imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(blob.name)}?alt=media`;
+    const { type, title, description, lat, lng, userId, eventDate } = req.body;
+    const mediaFiles = [];
+
+    // Upload media files to Firebase Storage if present
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const isVideo = file.mimetype.startsWith('video/');
+        const extension = file.originalname.split('.').pop();
+        const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
+        const blob = bucket.file(`incidents/${filename}`);
+        const blobStream = blob.createWriteStream({ resumable: false });
+        
+        blobStream.end(file.buffer);
+        await new Promise((resolve, reject) => {
+          blobStream.on('finish', resolve);
+          blobStream.on('error', reject);
+        });
+
+        const mediaUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(blob.name)}?alt=media`;
+        
+        const mediaFile = {
+          url: mediaUrl,
+          type: isVideo ? 'video' : 'image'
+        };
+
+        // If it's a video, generate a thumbnail
+        if (isVideo) {
+          try {
+            // Create a temporary file for the video
+            const tempVideoPath = path.join(__dirname, 'temp', filename);
+            const tempThumbPath = path.join(__dirname, 'temp', `${filename}_thumb.jpg`);
+            
+            // Ensure temp directory exists
+            const fs = require('fs');
+            if (!fs.existsSync(path.join(__dirname, 'temp'))) {
+              fs.mkdirSync(path.join(__dirname, 'temp'));
+            }
+
+            // Write the video buffer to a temporary file
+            fs.writeFileSync(tempVideoPath, file.buffer);
+
+            // Generate thumbnail using ffmpeg
+            await new Promise((resolve, reject) => {
+              ffmpeg(tempVideoPath)
+                .screenshots({
+                  timestamps: ['00:00:01'], // Take screenshot at 1 second
+                  filename: `${filename}_thumb.jpg`,
+                  folder: path.join(__dirname, 'temp'),
+                  size: '320x240'
+                })
+                .on('end', resolve)
+                .on('error', reject);
+            });
+
+            // Upload thumbnail to Firebase Storage
+            const thumbnailBlob = bucket.file(`incidents/${filename}_thumb.jpg`);
+            const thumbnailStream = thumbnailBlob.createWriteStream({ resumable: false });
+            
+            fs.createReadStream(tempThumbPath).pipe(thumbnailStream);
+            
+            await new Promise((resolve, reject) => {
+              thumbnailStream.on('finish', resolve);
+              thumbnailStream.on('error', reject);
+            });
+
+            // Get the thumbnail URL
+            const thumbnailUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(thumbnailBlob.name)}?alt=media`;
+            mediaFile.thumbnailUrl = thumbnailUrl;
+
+            // Clean up temporary files
+            fs.unlinkSync(tempVideoPath);
+            fs.unlinkSync(tempThumbPath);
+          } catch (error) {
+            console.error('Error generating thumbnail:', error);
+            // Fallback to placeholder if thumbnail generation fails
+            mediaFile.thumbnailUrl = 'https://via.placeholder.com/320x240?text=Video';
+          }
+        }
+
+        mediaFiles.push(mediaFile);
+      }
     }
+
     const incidentData = {
       title,
       description: description || '',
       type,
       location: { lat: parseFloat(lat), lng: parseFloat(lng) },
-      imageUrl,
-      userId: userId || null,
-      timestamp: new Date().toISOString(),
+      mediaFiles,
+      userId: userId || 'dev-user-123', // Use dev-user-123 as default for development
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      eventDate: eventDate ? admin.firestore.Timestamp.fromDate(new Date(eventDate)) : admin.firestore.FieldValue.serverTimestamp(),
     };
+    
+    // Save to incidents collection
     const docRef = await db.collection('incidents').add(incidentData);
-    res.status(201).json({ id: docRef.id, ...incidentData });
+    res.json({ id: docRef.id, ...incidentData });
   } catch (error) {
-    console.error('Error creating incident:', error); // FULL error object
-    res.status(400).json({ message: 'Error creating incident', error: error.message });
+    res.status(500).json({ message: 'Error creating incident', error: error.message });
   }
 });
 
-app.get('/api/sightings/:id', async (req, res) => {
+// Get a single incident
+app.get('/api/incidents/:id', async (req, res) => {
   try {
-    const docRef = db.collection('sightings').doc(req.params.id);
+    const docRef = db.collection('incidents').doc(req.params.id);
     const docSnap = await docRef.get();
     if (!docSnap.exists) {
-      return res.status(404).json({ message: 'Sighting not found' });
+      return res.status(404).json({ message: 'Incident not found' });
     }
     res.json({ id: docSnap.id, ...docSnap.data() });
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching sighting', error: error.message });
-  }
-});
-
-// GET /api/incidents - return all incidents
-app.get('/api/incidents', async (req, res) => {
-  try {
-    const incidentsRef = db.collection('incidents');
-    const snapshot = await incidentsRef.orderBy('timestamp', 'desc').get();
-    const incidents = [];
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      incidents.push({
-        id: doc.id,
-        type: data.type,
-        title: data.title,
-        description: data.description,
-        location: data.location,
-        imageUrl: data.imageUrl,
-        userId: data.userId,
-        timestamp: data.timestamp,
-      });
-    });
-    res.json(incidents);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching incidents', error: error.message });
+    res.status(500).json({ message: 'Error fetching incident', error: error.message });
   }
 });
 

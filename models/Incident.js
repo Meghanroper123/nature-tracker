@@ -1,4 +1,4 @@
-const { collection, doc, getDoc, setDoc, getDocs, deleteDoc, serverTimestamp, query, where, orderBy, limit } = require('firebase/firestore');
+const { collection, doc, getDoc, setDoc, getDocs, deleteDoc, serverTimestamp, query, where, orderBy, limit, Timestamp } = require('firebase/firestore');
 const { db } = require('../config/firebase');
 
 class Incident {
@@ -8,9 +8,9 @@ class Incident {
     this.title = incidentData.title;
     this.description = incidentData.description;
     this.location = incidentData.location || { lat: 0, lng: 0 };
-    this.imageUrl = incidentData.imageUrl || null;
-    this.eventDate = incidentData.eventDate || new Date().toISOString();
-    this.timestamp = incidentData.timestamp || new Date().toISOString();
+    this.mediaFiles = incidentData.mediaFiles || []; // Array of { url: string, type: 'image' | 'video', thumbnailUrl?: string }
+    this.eventDate = incidentData.eventDate ? new Timestamp(incidentData.eventDate.seconds, incidentData.eventDate.nanoseconds) : Timestamp.now();
+    this.timestamp = incidentData.timestamp ? new Timestamp(incidentData.timestamp.seconds, incidentData.timestamp.nanoseconds) : Timestamp.now();
     this.userId = incidentData.userId || null;
   }
   
@@ -27,7 +27,7 @@ class Incident {
       title: this.title,
       description: this.description,
       location: this.location,
-      imageUrl: this.imageUrl,
+      mediaFiles: this.mediaFiles,
       eventDate: this.eventDate,
       timestamp: this.timestamp,
       userId: this.userId
@@ -51,7 +51,7 @@ class Incident {
       }
       
       if (filters.eventType || filters.timeFilter) {
-        const now = new Date().toISOString();
+        const now = Timestamp.now();
         
         if (filters.eventType === 'upcoming') {
           queryConstraints.push(where('eventDate', '>', now));
@@ -78,14 +78,14 @@ class Incident {
       
       // Apply time filtering if needed
       if (filters.timeFilter) {
-        const now = new Date();
+        const now = Timestamp.now();
         const oneDay = 24 * 60 * 60 * 1000;
         const oneWeek = 7 * oneDay;
         const oneMonth = 30 * oneDay;
         
         incidents = incidents.filter(incident => {
-          const eventDate = new Date(incident.eventDate);
-          const diff = Math.abs(now - eventDate);
+          const eventDate = incident.eventDate.toDate();
+          const diff = Math.abs(now.toDate() - eventDate);
           
           if (filters.timeFilter === '1day') {
             return diff <= oneDay;

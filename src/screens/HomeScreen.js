@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { db } from '../services/firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
   const [incidents, setIncidents] = useState([]);
@@ -22,30 +25,43 @@ const HomeScreen = ({ navigation }) => {
     return () => unsubscribe();
   }, []);
 
-  const renderIncident = ({ item }) => (
-    <TouchableOpacity
-      style={styles.incidentCard}
-      onPress={() => navigation.navigate('IncidentDetails', { incident: item })}
-    >
-      {item.imageUrl && (
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={styles.incidentImage}
-          resizeMode="cover"
-        />
-      )}
-      <View style={styles.incidentContent}>
-        <Text style={styles.incidentTitle}>{item.title}</Text>
-        <Text style={styles.incidentType}>{item.type}</Text>
-        <Text style={styles.incidentDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-        <Text style={styles.incidentDate}>
-          {new Date(item.timestamp?.toDate()).toLocaleDateString()}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const getFirstImageUrl = (mediaFiles, imageUrl) => {
+    if (Array.isArray(mediaFiles)) {
+      const firstImage = mediaFiles.find(
+        m => m && typeof m === 'object' && m.type && m.type.toLowerCase() === 'image' && m.url
+      );
+      if (firstImage) return firstImage.url;
+    }
+    return imageUrl || null;
+  };
+
+  const renderIncident = ({ item }) => {
+    const imageToShow = getFirstImageUrl(item.mediaFiles, item.imageUrl);
+    return (
+      <TouchableOpacity
+        style={styles.incidentCard}
+        onPress={() => navigation.navigate('IncidentDetails', { incident: item })}
+      >
+        {imageToShow && (
+          <Image
+            source={{ uri: imageToShow }}
+            style={styles.mediaPreview}
+            resizeMode="cover"
+          />
+        )}
+        <View style={styles.incidentContent}>
+          <Text style={styles.incidentTitle}>{item.title}</Text>
+          <Text style={styles.incidentType}>{item.type}</Text>
+          <Text style={styles.incidentDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+          <Text style={styles.incidentDate}>
+            {new Date(item.timestamp?.toDate()).toLocaleDateString()}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -61,12 +77,7 @@ const HomeScreen = ({ navigation }) => {
         data={incidents}
         renderItem={renderIncident}
         keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No incidents reported yet</Text>
-          </View>
-        }
+        contentContainerStyle={styles.incidentsList}
       />
     </View>
   );
@@ -82,7 +93,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  listContainer: {
+  incidentsList: {
     padding: 16,
   },
   incidentCard: {
@@ -92,16 +103,36 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  incidentImage: {
+  mediaContainer: {
+    position: 'relative',
+  },
+  mediaPreview: {
     width: '100%',
     height: 200,
+  },
+  videoPreview: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#666',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mediaCount: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  mediaCountText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   incidentContent: {
     padding: 16,
@@ -109,31 +140,22 @@ const styles = StyleSheet.create({
   incidentTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   incidentType: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#666',
     marginBottom: 8,
+    textTransform: 'capitalize',
   },
   incidentDescription: {
     fontSize: 14,
-    color: '#666',
+    color: '#333',
     marginBottom: 8,
   },
   incidentDate: {
     fontSize: 12,
     color: '#999',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
   },
 });
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, TouchableOpacity, View, Image, TextInput, Platform, Alert, Modal, FlatList } from 'react-native';
+import { StyleSheet, ScrollView, TouchableOpacity, View, Image, TextInput, Platform, Alert, Modal, FlatList, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -13,24 +14,24 @@ import { useAuth } from '@/contexts/AuthContext';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 
+const DEV_USER_ID = 'dev-user-123';
+
 type EventType = 'OCEAN' | 'WILDLIFE' | 'BOTANICAL' | 'ASTRONOMY';
 
 interface FormData {
-  type: EventType | '';
+  type: string;
   title: string;
   description: string;
-  image: string | null;
-  location: {
-    latitude: number;
-    longitude: number;
-  } | null;
+  mediaFiles: { uri: string; type: 'image' | 'video' }[];
+  location: { latitude: number; longitude: number } | null;
+  eventDate: Date;
 }
 
 interface FormErrors {
   type?: string;
   title?: string;
   description?: string;
-  image?: string;
+  mediaFiles?: string;
   location?: string;
 }
 
@@ -52,20 +53,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   formGroup: {
-    marginBottom: 20,
-    borderRadius: 16,
+    marginBottom: 16,
+    borderRadius: 12,
     padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
   },
   label: {
     fontSize: 16,
@@ -73,22 +63,106 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
+    height: 48,
+    borderRadius: 8,
+    paddingHorizontal: 12,
     fontSize: 16,
+    justifyContent: 'center',
   },
   textArea: {
     height: 120,
     textAlignVertical: 'top',
+    paddingTop: 12,
   },
-  errorInput: {
-    borderColor: '#E53E3E',
+  imageButton: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  imageGridItem: {
+    position: 'relative',
+  },
+  imagePreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+  },
+  videoPreview: {
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  videoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: 'white',
+    borderRadius: 12,
+  },
+  addMoreButton: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   errorText: {
-    color: '#E53E3E',
-    fontSize: 14,
+    color: 'red',
     marginTop: 4,
+  },
+  errorInput: {
+    borderColor: 'red',
+  },
+  submitButton: {
+    backgroundColor: '#4CAF50',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  typeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 2,
+  },
+  typeIcon: {
+    marginRight: 8,
+  },
+  typeLabel: {
+    fontSize: 16,
+    fontWeight: '500',
   },
   mapContainer: {
     height: 200,
@@ -98,34 +172,6 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
-  },
-  imageButton: {
-    height: 200,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imagePreview: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 12,
-  },
-  imagePlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitButton: {
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
   error: {
     color: '#E53E3E',
@@ -152,19 +198,6 @@ const styles = StyleSheet.create({
   typeList: {
     maxHeight: 300,
   },
-  typeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  typeIcon: {
-    marginRight: 12,
-  },
-  typeLabel: {
-    fontSize: 16,
-  },
   typeSelector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -180,6 +213,11 @@ const styles = StyleSheet.create({
   typeSelectorText: {
     marginLeft: 8,
   },
+  inputText: {
+    fontSize: 16,
+    color: '#000000',
+    textAlignVertical: 'center',
+  },
 });
 
 export default function AddSightingScreen() {
@@ -192,8 +230,9 @@ export default function AddSightingScreen() {
     type: '',
     title: '',
     description: '',
-    image: null,
+    mediaFiles: [],
     location: null,
+    eventDate: new Date(),
   });
 
   const [loading, setLoading] = useState(false);
@@ -206,6 +245,8 @@ export default function AddSightingScreen() {
   const originalLocation = formData.location;
   const SANTA_MONICA = { latitude: 34.0195, longitude: -118.4912, latitudeDelta: 0.01, longitudeDelta: 0.01 };
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
 
   useEffect(() => {
     (async () => {
@@ -239,18 +280,30 @@ export default function AddSightingScreen() {
 
   const validateForm = () => {
     const errors: FormErrors = {};
-    if (!formData.type) errors.type = 'Please select a type';
-    if (!formData.title.trim()) errors.title = 'Please enter a title';
-    if (!formData.image) errors.image = 'Please add a photo';
-    if (!formData.location) errors.location = 'Please enable location access';
+    
+    if (!formData.type) {
+      errors.type = 'Please select a type';
+    }
+    
+    if (!formData.title.trim()) {
+      errors.title = 'Please enter a title';
+    }
+    
+    if (!formData.mediaFiles.length) {
+      errors.mediaFiles = 'Please add at least one photo or video';
+    }
+    
+    if (!formData.location) {
+      errors.location = 'Please set a location';
+    }
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const pickImage = async () => {
+  const pickMedia = async () => {
     Alert.alert(
-      'Add Photo',
+      'Add Media',
       'Choose an option',
       [
         {
@@ -273,9 +326,9 @@ export default function AddSightingScreen() {
               if (!result.canceled && result.assets) {
                 setFormData(prev => ({
                   ...prev,
-                  image: result.assets[0].uri,
+                  mediaFiles: [...prev.mediaFiles, { uri: result.assets[0].uri, type: 'image' }],
                 }));
-                setFormErrors(prev => ({ ...prev, image: undefined }));
+                setFormErrors(prev => ({ ...prev, mediaFiles: undefined }));
               }
             } catch (err) {
               console.error('Error taking photo:', err);
@@ -284,32 +337,68 @@ export default function AddSightingScreen() {
           },
         },
         {
-          text: 'Choose from Library',
+          text: 'Record Video',
           onPress: async () => {
-            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
             if (status !== 'granted') {
-              Alert.alert('Permission Required', 'Please grant camera roll permissions to add photos');
+              Alert.alert('Permission Required', 'Please grant camera permissions to record videos');
               return;
             }
 
             try {
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
                 allowsEditing: true,
-                aspect: [4, 3],
                 quality: 1,
+                videoMaxDuration: 30,
               });
 
               if (!result.canceled && result.assets) {
                 setFormData(prev => ({
                   ...prev,
-                  image: result.assets[0].uri,
+                  mediaFiles: [...prev.mediaFiles, { uri: result.assets[0].uri, type: 'video' }],
                 }));
-                setFormErrors(prev => ({ ...prev, image: undefined }));
+                setFormErrors(prev => ({ ...prev, mediaFiles: undefined }));
               }
             } catch (err) {
-              console.error('Error picking image:', err);
-              Alert.alert('Error', 'Failed to pick image. Please try again.');
+              console.error('Error recording video:', err);
+              Alert.alert('Error', 'Failed to record video. Please try again.');
+            }
+          },
+        },
+        {
+          text: 'Choose from Library',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission Required', 'Please grant media library permissions to add files');
+              return;
+            }
+
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                allowsEditing: false,
+                allowsMultipleSelection: true,
+                selectionLimit: 5,
+                quality: 1,
+              });
+
+              if (!result.canceled && result.assets) {
+                const newMediaFiles = result.assets.map(asset => ({
+                  uri: asset.uri,
+                  type: asset.type === 'video' ? 'video' as const : 'image' as const
+                }));
+                
+                setFormData(prev => ({
+                  ...prev,
+                  mediaFiles: [...prev.mediaFiles, ...newMediaFiles].slice(0, 5),
+                }));
+                setFormErrors(prev => ({ ...prev, mediaFiles: undefined }));
+              }
+            } catch (err) {
+              console.error('Error picking media:', err);
+              Alert.alert('Error', 'Failed to pick media. Please try again.');
             }
           },
         },
@@ -322,10 +411,16 @@ export default function AddSightingScreen() {
     );
   };
 
-  const handleSubmit = async () => {
+  const removeMedia = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      mediaFiles: prev.mediaFiles.filter((_, i) => i !== index),
+    }));
+  };
 
+  const handleSubmit = async () => {
     if (!validateForm()) {
-      setError('Please fill out all required fields and upload a photo.');
+      setError('Please fill out all required fields and upload at least one photo or video.');
       return;
     }
 
@@ -333,23 +428,50 @@ export default function AddSightingScreen() {
     setError(null);
 
     try {
+      // Get the current location if not already set
+      let currentLocation = formData.location;
+      if (!currentLocation) {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const loc = await Location.getCurrentPositionAsync({});
+            currentLocation = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude
+            };
+          } else {
+            currentLocation = {
+              latitude: SANTA_MONICA.latitude,
+              longitude: SANTA_MONICA.longitude
+            };
+          }
+        } catch (e) {
+          currentLocation = {
+            latitude: SANTA_MONICA.latitude,
+            longitude: SANTA_MONICA.longitude
+          };
+        }
+      }
 
       const form = new FormData();
       form.append('title', formData.title);
       form.append('description', formData.description || '');
       form.append('type', formData.type);
-      form.append('lat', String(formData.location?.latitude));
-      form.append('lng', String(formData.location?.longitude));
-      // If you have userId, add it here: form.append('userId', userId);
-      if (formData.image) {
-        const uriParts = formData.image.split('.');
+      form.append('lat', String(currentLocation.latitude));
+      form.append('lng', String(currentLocation.longitude));
+      form.append('userId', user?.uid || DEV_USER_ID);
+      form.append('eventDate', formData.eventDate.toISOString());
+      
+      // Append all media files
+      formData.mediaFiles.forEach((file, index) => {
+        const uriParts = file.uri.split('.');
         const fileType = uriParts[uriParts.length - 1];
-        form.append('image', {
-          uri: formData.image,
-          name: `photo.${fileType}`,
-          type: `image/${fileType}`,
+        form.append('mediaFiles', {
+          uri: file.uri,
+          name: `${file.type}_${index}.${fileType}`,
+          type: file.type === 'video' ? `video/${fileType}` : `image/${fileType}`,
         } as any);
-      }
+      });
 
       const response = await fetch('http://192.168.50.2:3000/api/incidents', {
         method: 'POST',
@@ -371,8 +493,9 @@ export default function AddSightingScreen() {
         type: '',
         title: '',
         description: '',
-        image: null,
+        mediaFiles: [],
         location: null,
+        eventDate: new Date(),
       });
       setFormErrors({});
       setError(null);
@@ -380,7 +503,6 @@ export default function AddSightingScreen() {
       router.back();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save incident. Please try again.');
-
     } finally {
       setLoading(false);
     }
@@ -452,7 +574,7 @@ export default function AddSightingScreen() {
             <ThemedText style={[
               styles.label,
               { color: isDark ? '#FFFFFF' : '#000000' }
-            ]}>Photo</ThemedText>
+            ]}>Media (Up to 5 files)</ThemedText>
             <TouchableOpacity 
               style={[
                 styles.imageButton,
@@ -460,12 +582,45 @@ export default function AddSightingScreen() {
                   backgroundColor: isDark ? '#444444' : '#F9FAFB',
                   borderColor: isDark ? '#444444' : '#E5E7EB'
                 },
-                formErrors.image && styles.errorInput
+                formErrors.mediaFiles && styles.errorInput
               ]} 
-              onPress={pickImage}
+              onPress={pickMedia}
+              disabled={formData.mediaFiles.length >= 5}
             >
-              {formData.image ? (
-                <Image source={{ uri: formData.image }} style={styles.imagePreview} />
+              {formData.mediaFiles.length > 0 ? (
+                <View style={styles.imageGrid}>
+                  {formData.mediaFiles.map((file, index) => (
+                    <View key={index} style={styles.imageGridItem}>
+                      {file.type === 'image' ? (
+                        <Image source={{ uri: file.uri }} style={styles.imagePreview} />
+                      ) : (
+                        <View style={[styles.imagePreview, styles.videoPreview]}>
+                          <Image 
+                            source={{ uri: file.uri }} 
+                            style={[styles.imagePreview, { position: 'absolute' }]} 
+                          />
+                          <View style={styles.videoOverlay}>
+                            <Ionicons name="videocam" size={24} color="white" />
+                          </View>
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={styles.removeImageButton}
+                        onPress={() => removeMedia(index)}
+                      >
+                        <Ionicons name="close-circle" size={24} color="red" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {formData.mediaFiles.length < 5 && (
+                    <TouchableOpacity
+                      style={styles.addMoreButton}
+                      onPress={pickMedia}
+                    >
+                      <Ionicons name="add" size={24} color={isDark ? '#FFFFFF' : '#000000'} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               ) : (
                 <View style={styles.imagePlaceholder}>
                   <Ionicons 
@@ -473,12 +628,12 @@ export default function AddSightingScreen() {
                     size={24} 
                     color={isDark ? '#FFFFFF' : '#000000'} 
                   />
-                  <ThemedText>Add Photo</ThemedText>
+                  <ThemedText>Add Photos or Videos</ThemedText>
                 </View>
               )}
             </TouchableOpacity>
-            {formErrors.image && (
-              <ThemedText style={styles.errorText}>{formErrors.image}</ThemedText>
+            {formErrors.mediaFiles && (
+              <ThemedText style={styles.errorText}>{formErrors.mediaFiles}</ThemedText>
             )}
           </View>
 
@@ -590,6 +745,43 @@ export default function AddSightingScreen() {
             {formErrors.description && (
               <ThemedText style={styles.errorText}>{formErrors.description}</ThemedText>
             )}
+          </View>
+
+          <View style={[
+            styles.formGroup,
+            { backgroundColor: isDark ? '#333333' : '#FFFFFF' }
+          ]}>
+            <ThemedText style={[
+              styles.label,
+              { color: isDark ? '#FFFFFF' : '#000000' }
+            ]}>Event Date</ThemedText>
+            <TouchableOpacity
+              style={[
+                styles.input,
+                { backgroundColor: isDark ? '#444444' : '#F9FAFB' }
+              ]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <ThemedText style={[
+                styles.inputText,
+                { color: isDark ? '#FFFFFF' : '#000000' }
+              ]}>
+                {formData.eventDate.toLocaleString()}
+              </ThemedText>
+            </TouchableOpacity>
+            <DateTimePickerModal
+              isVisible={showDatePicker}
+              mode="datetime"
+              date={formData.eventDate}
+              onConfirm={(selectedDate) => {
+                setShowDatePicker(false);
+                if (selectedDate) {
+                  setFormData(prev => ({ ...prev, eventDate: selectedDate }));
+                }
+              }}
+              onCancel={() => setShowDatePicker(false)}
+              display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            />
           </View>
 
           <View style={[styles.formGroup, { backgroundColor: isDark ? '#333333' : '#FFFFFF' }]}> 

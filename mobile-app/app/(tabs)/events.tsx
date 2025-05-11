@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, FlatList, TouchableOpacity, View, Platform, Text, Image, Modal } from 'react-native';
-import { useRouter } from 'expo-router';
+import { StyleSheet, FlatList, TouchableOpacity, View, Platform, Text, Image, Modal, Pressable } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, updateDoc, arrayUnion, arrayRemove, getDoc, collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import { db, getFirebasePublicUrl } from '@/services/firebase';
+import * as Location from 'expo-location';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -19,7 +20,9 @@ interface Event {
   description: string;
   location: { lat: number; lng: number };
   timestamp: string;
+  eventDate: string;
   imageUrl?: string | null;
+  mediaFiles?: { type: string; url: string; thumbnailUrl?: string }[];
 }
 
 const getTagColor = (type: Event['type']) => {
@@ -44,20 +47,75 @@ const getRelativeTime = (date: string) => {
     if (isNaN(eventDate.getTime())) {
       return 'Invalid date';
     }
-    const diffInDays = Math.floor((now.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24));
+    const diffInSeconds = Math.floor((now.getTime() - eventDate.getTime()) / 1000);
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
 
-    if (diffInDays === 0) return 'Today';
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes} min${diffInMinutes === 1 ? '' : 's'} ago`;
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours === 1 ? '' : 's'} ago`;
     if (diffInDays === 1) return 'Yesterday';
-    if (diffInDays < 7) return `${diffInDays} days ago`;
+    if (diffInDays < 7) return `${diffInDays} day${diffInDays === 1 ? '' : 's'} ago`;
     if (diffInDays < 30) {
       const weeks = Math.floor(diffInDays / 7);
-      return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
+      return `${weeks} week${weeks === 1 ? '' : 's'} ago`;
     }
     return eventDate.toLocaleDateString();
   } catch (error) {
     return 'Invalid date';
   }
 };
+
+// Helper to calculate distance between two lat/lng points in miles
+function getDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const R = 3958.8; // Radius of Earth in miles
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Helper to get a human-readable area from lat/lng using reverse geocoding
+const geocodeCache: Record<string, string> = {};
+async function getAreaName(lat: number, lng: number): Promise<string> {
+  const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  if (geocodeCache[key]) return geocodeCache[key];
+  try {
+    const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+    if (results && results.length > 0) {
+      const { city, district, subregion, region, name } = results[0];
+      const area = city || district || subregion || region || name || 'Unknown area';
+      geocodeCache[key] = area;
+      return area;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return 'Unknown area';
+}
+
+// Robust date normalization for Firestore Timestamp, Admin SDK, and string
+function normalizeDateField(field: any): string {
+  if (!field) return '';
+  if (typeof field === 'string') return field;
+  if (typeof field === 'object') {
+    // Firestore Admin SDK: _seconds/_nanoseconds or seconds/nanoseconds
+    const seconds = field._seconds ?? field.seconds;
+    const nanos = field._nanoseconds ?? field.nanoseconds ?? 0;
+    if (typeof seconds === 'number') {
+      return new Date(seconds * 1000 + Math.floor(nanos / 1e6)).toISOString();
+    }
+    // Firestore JS SDK Timestamp
+    if (typeof field.toDate === 'function') return field.toDate().toISOString();
+  }
+  return '';
+}
 
 export default function EventsScreen() {
   const router = useRouter();
@@ -69,11 +127,12 @@ export default function EventsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eventTimeFilter, setEventTimeFilter] = useState<'CURRENT' | 'UPCOMING'>('CURRENT');
-  const [sortType, setSortType] = useState<'recent' | 'trending'>('recent');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<EventType[]>([]);
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<'ALL' | 'WEEK' | 'MONTH' | 'UPCOMING'>('ALL');
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [areaNames, setAreaNames] = useState<Record<string, string>>({});
 
   const categoryOptions: { type: EventType; label: string; icon: any }[] = [
     { type: 'OCEAN', label: 'OCEAN', icon: <Ionicons name="water" size={20} color="#3B82F6" style={{ marginRight: 8 }} /> },
@@ -88,26 +147,67 @@ export default function EventsScreen() {
     { key: 'UPCOMING', label: 'UPCOMING' },
   ];
 
+  useFocusEffect(
+    React.useCallback(() => {
+      setLoading(true);
+      setError(null);
+
+      const fetchIncidents = async () => {
+        try {
+          const response = await fetch('http://192.168.50.2:3000/api/incidents');
+          const data = await response.json();
+          // Normalize eventDate and timestamp robustly
+          const normalized = (Array.isArray(data) ? data : []).map((item) => ({
+            ...item,
+            eventDate: normalizeDateField(item.eventDate),
+            timestamp: normalizeDateField(item.timestamp),
+          }));
+          setEvents(normalized);
+        } catch (err) {
+          console.error('Error fetching incidents from API:', err);
+          setError('Failed to load events');
+          setEvents([]); // fallback to empty array on error
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchIncidents();
+    }, [eventTimeFilter])
+  );
+
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-
-    const fetchIncidents = async () => {
+    (async () => {
       try {
-        const response = await fetch('http://192.168.50.2:3000/api/incidents');
-        const data = await response.json();
-        console.log('Fetched incidents from API:', data);
-        setEvents(data);
-      } catch (err) {
-        console.error('Error fetching incidents from API:', err);
-        setError('Failed to load events');
-      } finally {
-        setLoading(false);
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({});
+          setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        }
+      } catch (e) {
+        // ignore
       }
-    };
+    })();
+  }, []);
 
-    fetchIncidents();
-  }, [eventTimeFilter]);
+  // Preload area names for visible events
+  useEffect(() => {
+    (async () => {
+      if (!events) return;
+      const updates: Record<string, string> = {};
+      await Promise.all(events.map(async (item) => {
+        if (item.location) {
+          const key = `${item.location.lat.toFixed(4)},${item.location.lng.toFixed(4)}`;
+          if (!areaNames[key]) {
+            updates[key] = await getAreaName(item.location.lat, item.location.lng);
+          }
+        }
+      }));
+      if (Object.keys(updates).length > 0) {
+        setAreaNames(prev => ({ ...prev, ...updates }));
+      }
+    })();
+  }, [events]);
 
   // Apply filtering when events, selectedCategories, or selectedTimePeriod change
   useEffect(() => {
@@ -115,14 +215,30 @@ export default function EventsScreen() {
   }, [events, selectedCategories, selectedTimePeriod]);
 
   const applyFilters = () => {
-    let filtered = [...events];
+    // Ensure events is always an array
+    const safeEvents = Array.isArray(events) ? events : [];
+    let filtered = [...safeEvents];
+    // Sort by most recent (descending by timestamp)
+    filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const now = new Date();
+    // Filter by tab (CURRENT or UPCOMING)
+    if (eventTimeFilter === 'CURRENT') {
+      filtered = filtered.filter(event => {
+        const eventDate = new Date(event.timestamp);
+        return eventDate <= now;
+      });
+    } else if (eventTimeFilter === 'UPCOMING') {
+      filtered = filtered.filter(event => {
+        const eventDate = new Date(event.timestamp);
+        return eventDate > now;
+      });
+    }
     // Filter by categories if any selected
     if (selectedCategories.length > 0) {
       filtered = filtered.filter(event => selectedCategories.includes(event.type as EventType));
     }
     // Filter by time period
     if (selectedTimePeriod !== 'ALL') {
-      const now = new Date();
       filtered = filtered.filter(event => {
         const eventDate = new Date(event.timestamp);
         if (selectedTimePeriod === 'WEEK') {
@@ -181,6 +297,24 @@ export default function EventsScreen() {
   const renderEvent = ({ item }: { item: Event }) => {
     try {
       const tagColors = getTagColor(item.type as EventType);
+      const key = item.location ? `${item.location.lat.toFixed(4)},${item.location.lng.toFixed(4)}` : '';
+      const area = key && areaNames[key] ? areaNames[key] : '...';
+      let distanceText = '';
+      if (userLocation && item.location) {
+        const dist = getDistanceMiles(userLocation.latitude, userLocation.longitude, item.location.lat, item.location.lng);
+        distanceText = ` • ${dist.toFixed(1)} mi`;
+      }
+      
+      // Get the first image URL from either mediaFiles or imageUrl
+      const getFirstImageUrl = () => {
+        if (item.mediaFiles && item.mediaFiles.length > 0) {
+          const firstImage = item.mediaFiles.find(file => file.type === 'image');
+          if (firstImage) return firstImage.url;
+        }
+        return item.imageUrl;
+      };
+
+      const imageUrl = getFirstImageUrl();
       
       return (
         <TouchableOpacity
@@ -193,20 +327,20 @@ export default function EventsScreen() {
             router.push(`/${item.id}`);
           }}
         >
-          {item.imageUrl && (
+          {imageUrl && (
             <View style={[
               styles.imageContainer,
               { backgroundColor: isDark ? '#444444' : '#f0f0f0' }
             ]}>
               <Image
-                source={{ uri: getFirebasePublicUrl(item.imageUrl) }}
+                source={{ uri: getFirebasePublicUrl(imageUrl) }}
                 style={styles.cardImage}
                 resizeMode="cover"
                 onError={(e) => {
                   console.warn(`Failed to load image for event ${item.id}:`, e.nativeEvent.error);
                 }}
                 onLoadStart={() => {
-                  console.log(`Loading image for event ${item.id}: ${item.imageUrl}`);
+                  console.log(`Loading image for event ${item.id}: ${imageUrl}`);
                 }}
                 onLoadEnd={() => {
                   console.log(`Finished loading image for event ${item.id}`);
@@ -215,47 +349,41 @@ export default function EventsScreen() {
             </View>
           )}
           <View style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <View style={styles.tagContainer}>
-                <View style={[styles.tag, { backgroundColor: tagColors.bg }]}>
-                  <Text style={[styles.tagText, { color: tagColors.text }]}>
-                    {item.type}
-                  </Text>
-                </View>
-                <Text style={styles.date}>
-                  {getRelativeTime(item.timestamp)}
-                </Text>
-              </View>
-            </View>
-            
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text 
-              style={styles.cardDescription}
-              numberOfLines={2}
-            >
-              {item.description}
-            </Text>
-
-            <View style={styles.cardFooter}>
-              <View style={styles.locationContainer}>
+            <View style={[styles.cardHeader, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+              <Text style={[
+                styles.date,
+                { color: isDark ? '#CCCCCC' : undefined }
+              ]}>
+                {getRelativeTime(item.timestamp)}
+              </Text>
+              <View style={[styles.locationContainer, { flexDirection: 'row', alignItems: 'center' }]}>
                 <Ionicons
                   name="location"
                   size={16}
-                  color={isDark ? '#888888' : '#666666'}
+                  color={isDark ? '#AAAAAA' : '#666666'}
                 />
-                <Text style={styles.locationText}>
-                  {item.location ? `${item.location.lat.toFixed(4)}, ${item.location.lng.toFixed(4)}` : 'Unknown location'}
+                <Text style={[
+                  styles.locationText,
+                  { color: isDark ? '#BBBBBB' : undefined }
+                ]}>
+                  {item.location ? `${area}${distanceText}` : 'Unknown location'}
                 </Text>
               </View>
             </View>
+            <Text style={[
+              styles.cardTitle,
+              { color: isDark ? '#FFFFFF' : '#000000' }
+            ]}>
+              {item.title}
+            </Text>
           </View>
         </TouchableOpacity>
       );
-    } catch (err) {
-      console.error('Error rendering event:', err);
+    } catch (error) {
+      console.error('Error rendering event:', error);
       return (
         <View style={[styles.card, { backgroundColor: isDark ? '#333333' : '#FFFFFF' }]}>
-          <Text style={styles.error}>Error displaying event</Text>
+          <Text style={[styles.error, { color: isDark ? '#FF6B6B' : '#E53E3E' }]}>Error displaying event</Text>
         </View>
       );
     }
@@ -291,6 +419,9 @@ export default function EventsScreen() {
                   timestamp: typeof data.timestamp === 'string'
                     ? data.timestamp
                     : (data.timestamp && data.timestamp.toDate ? data.timestamp.toDate().toISOString() : ''),
+                  eventDate: typeof data.eventDate === 'string'
+                    ? data.eventDate
+                    : (data.eventDate && data.eventDate.toDate ? data.eventDate.toDate().toISOString() : ''),
                   imageUrl: data.imageUrl || null,
                 };
               });
@@ -347,18 +478,6 @@ export default function EventsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Sort and Filter Row */}
-      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginRight: 20, marginBottom: 4 }}>
-        <TouchableOpacity onPress={() => setSortType(sortType === 'recent' ? 'trending' : 'recent')}>
-          <Text style={{ fontSize: 12, color: '#888', textDecorationLine: 'underline', marginRight: 12 }}>
-            Sort: {sortType === 'recent' ? 'Most Recent' : 'Trending'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setFilterModalVisible(true)} style={{ padding: 4 }}>
-          <Ionicons name="filter" size={20} color="#888" />
-        </TouchableOpacity>
-      </View>
-
       {/* Filter Modal */}
       <Modal
         visible={filterModalVisible}
@@ -366,8 +485,14 @@ export default function EventsScreen() {
         transparent={true}
         onRequestClose={() => setFilterModalVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, minHeight: 340 }}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'flex-end' }}
+          onPress={() => setFilterModalVisible(false)}
+        >
+          <Pressable
+            style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, minHeight: 340 }}
+            onPress={(e) => e.stopPropagation()}
+          >
             <Text style={{ fontWeight: 'bold', fontSize: 20, marginBottom: 20 }}>Filter</Text>
             {/* Categories */}
             <Text style={{ fontWeight: '600', fontSize: 16, marginBottom: 8 }}>Categories</Text>
@@ -427,9 +552,16 @@ export default function EventsScreen() {
                 <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Apply</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
+
+      {/* Filter Row */}
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginRight: 20, marginBottom: 4 }}>
+        <TouchableOpacity onPress={() => setFilterModalVisible(true)} style={{ padding: 4 }}>
+          <Ionicons name="filter" size={20} color="#888" />
+        </TouchableOpacity>
+      </View>
 
       {/* Existing FlatList */}
       <FlatList
@@ -439,7 +571,10 @@ export default function EventsScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
+            <Text style={[
+              styles.emptyText,
+              { color: isDark ? '#CCCCCC' : undefined }
+            ]}>
               No {eventTimeFilter.toLowerCase()} events available.
             </Text>
           </View>
@@ -510,11 +645,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 8,
-  },
-  cardDescription: {
-    fontSize: 14,
-    opacity: 0.8,
-    marginBottom: 16,
   },
   cardFooter: {
     flexDirection: 'row',

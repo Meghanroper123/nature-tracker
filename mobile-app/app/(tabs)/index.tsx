@@ -21,7 +21,9 @@ type Incident = {
     lng: number;
   };
   timestamp: string;
+  eventDate: string;
   imageUrl?: string;
+  mediaFiles?: { url: string; type: string }[];
 };
 
 // Define marker colors for each type
@@ -68,6 +70,23 @@ const getSystemFont = (weight: 'regular' | 'medium' | 'semibold' | 'bold') => {
     }
   }
 };
+
+// Robust date normalization for Firestore Timestamp, Admin SDK, and string
+function normalizeDateField(field: any): string {
+  if (!field) return '';
+  if (typeof field === 'string') return field;
+  if (typeof field === 'object') {
+    // Firestore Admin SDK: _seconds/_nanoseconds or seconds/nanoseconds
+    const seconds = field._seconds ?? field.seconds;
+    const nanos = field._nanoseconds ?? field.nanoseconds ?? 0;
+    if (typeof seconds === 'number') {
+      return new Date(seconds * 1000 + Math.floor(nanos / 1e6)).toISOString();
+    }
+    // Firestore JS SDK Timestamp
+    if (typeof field.toDate === 'function') return field.toDate().toISOString();
+  }
+  return '';
+}
 
 export default function MapScreen() {
   const router = useRouter();
@@ -238,14 +257,14 @@ export default function MapScreen() {
     },
     filterButton: {
       position: 'absolute',
-      width: 56,
-      height: 56,
+      width: 48,
+      height: 48,
       alignItems: 'center',
       justifyContent: 'center',
-      right: 20,
-      bottom: 20,
-      borderRadius: 28,
-      backgroundColor: isDark ? '#2F855A' : '#48BB78',
+      left: 20,
+      bottom: 32,
+      borderRadius: 24,
+      backgroundColor: isDark ? 'rgba(26, 32, 44, 0.8)' : 'rgba(255, 255, 255, 0.8)',
       elevation: 8,
       shadowColor: "#000",
       shadowOffset: {
@@ -254,6 +273,29 @@ export default function MapScreen() {
       },
       shadowOpacity: 0.25,
       shadowRadius: 3.84,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    locationButton: {
+      position: 'absolute',
+      width: 48,
+      height: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      right: 20,
+      bottom: 32,
+      borderRadius: 24,
+      backgroundColor: isDark ? 'rgba(26, 32, 44, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+      elevation: 8,
+      shadowColor: "#000",
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
     },
     modalOverlay: {
       flex: 1,
@@ -394,7 +436,9 @@ export default function MapScreen() {
   });
 
   const filteredIncidents = useMemo(() => {
-    let filtered = [...incidents];  // Create a copy of incidents array
+    // Ensure incidents is always an array
+    const safeIncidents = Array.isArray(incidents) ? incidents : [];
+    let filtered = [...safeIncidents];  // Create a copy of incidents array
 
     // Type filter - only apply if types are selected
     if (selectedTypes.length > 0) {
@@ -404,7 +448,7 @@ export default function MapScreen() {
     // Time filter
     const now = new Date();
     filtered = filtered.filter(incident => {
-      const incidentDate = new Date(incident.timestamp);
+      const incidentDate = new Date(incident.eventDate || incident.timestamp);
       const diffTime = Math.abs(now.getTime() - incidentDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       switch (timeFilter) {
@@ -435,9 +479,16 @@ export default function MapScreen() {
     try {
       const response = await fetch('http://192.168.50.2:3000/api/incidents');
       const data = await response.json();
-      setIncidents(data);
+      // Normalize eventDate and timestamp robustly
+      const normalized = (Array.isArray(data) ? data : []).map((item) => ({
+        ...item,
+        eventDate: normalizeDateField(item.eventDate),
+        timestamp: normalizeDateField(item.timestamp),
+      }));
+      setIncidents(normalized);
     } catch (err) {
       setErrorMsg('Failed to load incidents');
+      setIncidents([]); // fallback to empty array on error
     }
   }, []);
 
@@ -515,6 +566,26 @@ export default function MapScreen() {
     Keyboard.dismiss();
   };
 
+  const handleCenterOnLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setErrorMsg('Permission to access location was denied');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      setMapRegion({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      });
+    } catch (error) {
+      setErrorMsg('Could not get location');
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
       {errorMsg && incidents.length === 0 ? (
@@ -565,7 +636,7 @@ export default function MapScreen() {
               onPress={() => Keyboard.dismiss()}
               region={mapRegion}
               showsUserLocation={true}
-              showsMyLocationButton={true}>
+              showsMyLocationButton={false}>
               {/* Incident markers */}
               {filteredIncidents.map((incident) => (
                 <Marker
@@ -575,17 +646,35 @@ export default function MapScreen() {
                     longitude: incident.location.lng,
                   }}
                   pinColor={markerColors[incident.type as keyof typeof markerColors] || markerColors.default}>
-                  <Callout tooltip>
+                  <Callout
+                    tooltip
+                    onPress={() => {
+                      console.log('View event:', incident.id);
+                      router.push(`/${incident.id}`);
+                    }}
+                  >
                     <View style={styles.calloutContainer}>
                       <View style={styles.calloutContent}>
                         <ThemedText style={styles.calloutTitle}>{incident.title}</ThemedText>
-                        {incident.imageUrl && (
+                        {/* Show up to 2 images from mediaFiles, or fallback to imageUrl */}
+                        {Array.isArray(incident.mediaFiles) && incident.mediaFiles.filter(m => m.type === 'image').length > 0 ? (
+                          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                            {incident.mediaFiles.filter(m => m.type === 'image').slice(0, 2).map((media, idx) => (
+                              <Image
+                                key={idx}
+                                source={{ uri: getFirebasePublicUrl(media.url) }}
+                                style={{ width: 85, height: 85, borderRadius: 8 }}
+                                resizeMode="cover"
+                              />
+                            ))}
+                          </View>
+                        ) : incident.imageUrl ? (
                           <Image
                             source={{ uri: getFirebasePublicUrl(incident.imageUrl) }}
                             style={{ width: 180, height: 100, borderRadius: 8, marginBottom: 8 }}
                             resizeMode="cover"
                           />
-                        )}
+                        ) : null}
                         <ThemedText style={styles.calloutDescription}>{incident.description}</ThemedText>
                         <View style={[styles.calloutTag, { backgroundColor: markerColors[incident.type as keyof typeof markerColors] || markerColors.default }]}>
                           <ThemedText style={styles.calloutTagText}>{incident.type}</ThemedText>
@@ -599,6 +688,18 @@ export default function MapScreen() {
             </MapView>
           )}
 
+          {/* Location Centering Button */}
+          <TouchableOpacity
+            style={styles.locationButton}
+            onPress={handleCenterOnLocation}
+          >
+            <Ionicons 
+              name="locate" 
+              size={24} 
+              color={isDark ? '#FFFFFF' : '#1A202C'}
+            />
+          </TouchableOpacity>
+
           {/* Floating Filter Button */}
           <TouchableOpacity
             style={styles.filterButton}
@@ -607,7 +708,7 @@ export default function MapScreen() {
             <Ionicons 
               name="filter" 
               size={24} 
-              color="#FFFFFF"
+              color={isDark ? '#FFFFFF' : '#1A202C'}
             />
           </TouchableOpacity>
 
