@@ -473,7 +473,7 @@ export default function AddSightingScreen() {
         } as any);
       });
 
-      const response = await fetch('http://192.168.50.2:3000/api/incidents', {
+      const response = await fetch('http://192.168.1.187:3000/api/incidents', {
         method: 'POST',
         body: form,
       });

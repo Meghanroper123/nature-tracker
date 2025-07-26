@@ -43,5 +43,5 @@ export function getFirebasePublicUrl(imageUrl?: string | null): string | undefin
   storagePath = storagePath.replace(/^\//, '');
   // Encode slashes for URL
   const encodedPath = encodeURIComponent(storagePath);
-  return `https://firebasestorage.googleapis.com/v0/b/nature-tracker-e4957.appspot.com/o/${encodedPath}?alt=media`;
+  return `https://firebasestorage.googleapis.com/v0/b/nature-tracker-e4957.firebasestorage.app/o/${encodedPath}?alt=media`;
 } 

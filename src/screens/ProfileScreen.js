@@ -90,7 +90,7 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={styles.incidentTitle}>{item.title}</Text>
         <Text style={styles.incidentType}>{item.type}</Text>
         <Text style={styles.incidentDate}>
-          {new Date(item.timestamp?.toDate()).toLocaleDateString()}
+          {new Date(item.eventDate?.toDate ? item.eventDate.toDate() : item.eventDate).toLocaleDateString()}
         </Text>
       </TouchableOpacity>
     );

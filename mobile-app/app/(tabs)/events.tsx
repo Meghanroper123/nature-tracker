@@ -126,7 +126,7 @@ export default function EventsScreen() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [eventTimeFilter, setEventTimeFilter] = useState<'CURRENT' | 'UPCOMING'>('CURRENT');
+  const [eventTimeFilter, setEventTimeFilter] = useState<'RECENT' | 'UPCOMING'>('RECENT');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<EventType[]>([]);
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<'ALL' | 'WEEK' | 'MONTH' | 'UPCOMING'>('ALL');
@@ -154,7 +154,7 @@ export default function EventsScreen() {
 
       const fetchIncidents = async () => {
         try {
-          const response = await fetch('http://192.168.50.2:3000/api/incidents');
+          const response = await fetch('http://192.168.1.187:3000/api/incidents');
           const data = await response.json();
           // Normalize eventDate and timestamp robustly
           const normalized = (Array.isArray(data) ? data : []).map((item) => ({
@@ -218,18 +218,18 @@ export default function EventsScreen() {
     // Ensure events is always an array
     const safeEvents = Array.isArray(events) ? events : [];
     let filtered = [...safeEvents];
-    // Sort by most recent (descending by timestamp)
-    filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    // Sort by most recent (descending by eventDate)
+    filtered.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
     const now = new Date();
-    // Filter by tab (CURRENT or UPCOMING)
-    if (eventTimeFilter === 'CURRENT') {
+    // Filter by tab (RECENT or UPCOMING)
+    if (eventTimeFilter === 'RECENT') {
       filtered = filtered.filter(event => {
-        const eventDate = new Date(event.timestamp);
+        const eventDate = new Date(event.eventDate);
         return eventDate <= now;
       });
     } else if (eventTimeFilter === 'UPCOMING') {
       filtered = filtered.filter(event => {
-        const eventDate = new Date(event.timestamp);
+        const eventDate = new Date(event.eventDate);
         return eventDate > now;
       });
     }
@@ -240,7 +240,7 @@ export default function EventsScreen() {
     // Filter by time period
     if (selectedTimePeriod !== 'ALL') {
       filtered = filtered.filter(event => {
-        const eventDate = new Date(event.timestamp);
+        const eventDate = new Date(event.eventDate);
         if (selectedTimePeriod === 'WEEK') {
           const weekAgo = new Date(now);
           weekAgo.setDate(now.getDate() - 7);
@@ -354,7 +354,7 @@ export default function EventsScreen() {
                 styles.date,
                 { color: isDark ? '#CCCCCC' : undefined }
               ]}>
-                {getRelativeTime(item.timestamp)}
+                {getRelativeTime(item.eventDate)}
               </Text>
               <View style={[styles.locationContainer, { flexDirection: 'row', alignItems: 'center' }]}>
                 <Ionicons
@@ -449,16 +449,16 @@ export default function EventsScreen() {
         <TouchableOpacity
           style={[
             styles.toggleButton,
-            eventTimeFilter === 'CURRENT' && styles.toggleButtonActive,
+            eventTimeFilter === 'RECENT' && styles.toggleButtonActive,
             { borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }
           ]}
-          onPress={() => setEventTimeFilter('CURRENT')}
+          onPress={() => setEventTimeFilter('RECENT')}
         >
           <Text style={[
             styles.toggleButtonText,
-            eventTimeFilter === 'CURRENT' && styles.toggleButtonTextActive
+            eventTimeFilter === 'RECENT' && styles.toggleButtonTextActive
           ]}>
-            CURRENT
+            RECENT
           </Text>
         </TouchableOpacity>
         <TouchableOpacity

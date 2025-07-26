@@ -11,7 +11,7 @@ const HomeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'incidents'), orderBy('timestamp', 'desc'));
+    const q = query(collection(db, 'incidents'), orderBy('eventDate', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const incidentsList = snapshot.docs.map(doc => ({
@@ -56,7 +56,7 @@ const HomeScreen = ({ navigation }) => {
             {item.description}
           </Text>
           <Text style={styles.incidentDate}>
-            {new Date(item.timestamp?.toDate()).toLocaleDateString()}
+            {new Date(item.eventDate?.toDate ? item.eventDate.toDate() : item.eventDate).toLocaleDateString()}
           </Text>
         </View>
       </TouchableOpacity>

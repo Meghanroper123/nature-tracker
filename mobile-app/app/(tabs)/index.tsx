@@ -477,7 +477,7 @@ export default function MapScreen() {
 
   const fetchIncidents = useCallback(async () => {
     try {
-      const response = await fetch('http://192.168.50.2:3000/api/incidents');
+      const response = await fetch('http://192.168.1.187:3000/api/incidents');
       const data = await response.json();
       // Normalize eventDate and timestamp robustly
       const normalized = (Array.isArray(data) ? data : []).map((item) => ({

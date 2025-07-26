@@ -29,6 +29,7 @@ interface Event {
   timestamp: string;
   imageUrl?: string | null;
   mediaFiles?: { type: string; url: string; thumbnailUrl?: string }[];
+  eventDate?: string; // Added for date display
 }
 
 const { width } = Dimensions.get('window');
@@ -108,7 +109,7 @@ export default function EventDetailScreen() {
       setLoading(true);
       setError(null);
       // Fetch from backend API
-      const response = await fetch(`http://192.168.50.2:3000/api/incidents`);
+      const response = await fetch(`http://192.168.1.187:3000/api/incidents`);
       const data = await response.json();
       console.log('Fetched incidents from API:', data);
       const found = data.find((incident: Event) => incident.id === id);
@@ -126,7 +127,7 @@ export default function EventDetailScreen() {
 
   const fetchComments = async () => {
     try {
-      const response = await fetch(`http://192.168.50.2:3000/api/incidents/${id}/comments`);
+      const response = await fetch(`http://192.168.1.187:3000/api/incidents/${id}/comments`);
       const data = await response.json();
       setComments(data);
     } catch (err) {
@@ -146,7 +147,7 @@ export default function EventDetailScreen() {
         username: user.name || 'Anonymous',
         text: newComment,
       };
-      const response = await fetch(`http://192.168.50.2:3000/api/incidents/${id}/comments`, {
+      const response = await fetch(`http://192.168.1.187:3000/api/incidents/${id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -461,7 +462,7 @@ export default function EventDetailScreen() {
                 </View>
               </View>
 
-              <ThemedText style={styles.date}>{formatDate(event.timestamp)}</ThemedText>
+              <ThemedText style={styles.date}>{formatDate(event.eventDate || event.timestamp)}</ThemedText>
               <ThemedText style={styles.description}>{event.description}</ThemedText>
 
               {/* Map view */}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +36,7 @@ export function SightingCard({
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const [imageError, setImageError] = useState(false);
 
   const handlePress = () => {
     router.push(`/sighting/${id}`);
@@ -44,12 +45,27 @@ export function SightingCard({
   return (
     <TouchableOpacity onPress={handlePress}>
       <ThemedView style={styles.card}>
-        {imageUrl && (
+        {imageUrl && !imageError ? (
           <Image
             source={{ uri: getFirebasePublicUrl(imageUrl) }}
             style={styles.image}
             contentFit="cover"
+            onError={() => {
+              console.log('Image failed to load:', imageUrl);
+              setImageError(true);
+            }}
           />
+        ) : (
+          <View style={[styles.image, styles.placeholderContainer, { backgroundColor: isDark ? '#444' : '#f0f0f0' }]}>
+            <Ionicons 
+              name="image-outline" 
+              size={48} 
+              color={isDark ? '#888' : '#ccc'} 
+            />
+            <ThemedText style={styles.placeholderText}>
+              {imageError ? 'Image unavailable' : 'No image'}
+            </ThemedText>
+          </View>
         )}
         <View style={styles.content}>
           <View style={styles.header}>
@@ -111,6 +127,16 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: 200,
+  },
+  placeholderContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  placeholderText: {
+    marginTop: 10,
+    fontSize: 14,
+    opacity: 0.7,
   },
   content: {
     padding: 16,

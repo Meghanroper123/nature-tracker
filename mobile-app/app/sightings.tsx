@@ -23,6 +23,7 @@ interface Sighting {
     lat: number;
     lng: number;
   };
+  eventDate?: string; // Added for the new date display
 }
 
 const getTagColor = (type: string) => {
@@ -191,7 +192,7 @@ export default function SightingsScreen() {
       }
 
       // Use the incidents endpoint
-      const response = await fetch(`http://192.168.50.2:3000/api/incidents?userId=${user?.uid || DEV_USER_ID}`);
+      const response = await fetch(`http://192.168.1.187:3000/api/incidents?userId=${user?.uid || DEV_USER_ID}`);
       if (!response.ok) {
         throw new Error('Failed to fetch incidents');
       }
@@ -220,9 +221,11 @@ export default function SightingsScreen() {
     const now = new Date();
     if (selectedTimePeriod !== 'ALL') {
       filtered = filtered.filter(sighting => {
-        const sightingDate = typeof sighting.timestamp === 'string' ? 
-          new Date(sighting.timestamp) : 
-          sighting.timestamp.toDate();
+        const sightingDate = sighting.eventDate ? 
+          new Date(sighting.eventDate) : 
+          (typeof sighting.timestamp === 'string' ? 
+            new Date(sighting.timestamp) : 
+            sighting.timestamp.toDate());
         if (selectedTimePeriod === 'WEEK') {
           const weekAgo = new Date(now);
           weekAgo.setDate(now.getDate() - 7);
@@ -292,7 +295,7 @@ export default function SightingsScreen() {
               styles.date,
               { color: isDark ? '#CCCCCC' : undefined }
             ]}>
-              {getRelativeTime(item.timestamp)}
+              {getRelativeTime(item.eventDate || item.timestamp)}
             </Text>
             <View style={[styles.locationContainer, { flexDirection: 'row', alignItems: 'center' }]}>
               <Ionicons
@@ -349,9 +352,11 @@ export default function SightingsScreen() {
     const now = new Date();
     if (selectedTimePeriod !== 'ALL') {
       filtered = filtered.filter(sighting => {
-        const sightingDate = typeof sighting.timestamp === 'string' ? 
-          new Date(sighting.timestamp) : 
-          sighting.timestamp.toDate();
+        const sightingDate = sighting.eventDate ? 
+          new Date(sighting.eventDate) : 
+          (typeof sighting.timestamp === 'string' ? 
+            new Date(sighting.timestamp) : 
+            sighting.timestamp.toDate());
         if (selectedTimePeriod === 'WEEK') {
           const weekAgo = new Date(now);
           weekAgo.setDate(now.getDate() - 7);

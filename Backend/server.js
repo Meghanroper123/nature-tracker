@@ -26,13 +26,28 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Firebase Admin initialization
-const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) : null;
-if (serviceAccount && serviceAccount.private_key) {
-  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+let serviceAccount;
+try {
+  // Try to read from environment variable first (for production)
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    if (serviceAccount && serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
+  } else {
+    // For local development, read directly from the service account file
+    serviceAccount = require('./nature-tracker-e4957-firebase-adminsdk-fbsvc-7f336d7d8c.json');
+    console.log('✅ Using local Firebase service account file for development');
+  }
+} catch (error) {
+  console.error('❌ Error loading Firebase service account:', error.message);
+  throw new Error('Firebase service account configuration is missing or invalid.');
 }
+
 if (!serviceAccount) {
-  throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set or invalid.');
+  throw new Error('Firebase service account configuration is not available.');
 }
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   storageBucket: 'nature-tracker-e4957.firebasestorage.app',
@@ -67,13 +82,43 @@ app.get('/api/incidents', async (req, res) => {
       // For development, if no userId is provided, show dev-user-123's incidents
       query = query.where('userId', '==', 'dev-user-123');
     }
-    query = query.orderBy('timestamp', 'desc');
-    const snapshot = await query.get();
-    const incidents = [];
-    snapshot.forEach(doc => {
-      incidents.push({ id: doc.id, ...doc.data() });
-    });
-    res.json(incidents);
+    
+    // Try to order by eventDate, but handle missing eventDate gracefully
+    try {
+      query = query.orderBy('eventDate', 'desc');
+      const snapshot = await query.get();
+      const incidents = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        // Ensure eventDate exists, fallback to timestamp if not
+        if (!data.eventDate && data.timestamp) {
+          data.eventDate = data.timestamp;
+        }
+        incidents.push({ id: doc.id, ...data });
+      });
+      res.json(incidents);
+    } catch (indexError) {
+      // If ordering by eventDate fails (missing index or field), fall back to timestamp
+      console.warn('eventDate ordering failed, falling back to timestamp:', indexError.message);
+      query = incidentsRef;
+      if (userId) {
+        query = query.where('userId', '==', userId);
+      } else {
+        query = query.where('userId', '==', 'dev-user-123');
+      }
+      query = query.orderBy('timestamp', 'desc');
+      const snapshot = await query.get();
+      const incidents = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        // Ensure eventDate exists, fallback to timestamp if not
+        if (!data.eventDate && data.timestamp) {
+          data.eventDate = data.timestamp;
+        }
+        incidents.push({ id: doc.id, ...data });
+      });
+      res.json(incidents);
+    }
   } catch (error) {
     res.status(500).json({ message: 'Error fetching incidents', error: error.message });
   }

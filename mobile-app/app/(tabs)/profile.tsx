@@ -23,6 +23,7 @@ interface Sighting {
     lat: number;
     lng: number;
   };
+  mediaFiles?: { url: string; type: string }[];
 }
 
 export default function ProfileScreen() {
@@ -48,7 +49,7 @@ export default function ProfileScreen() {
       const q = query(
         collection(db, 'incidents'),
         where('userId', '==', effectiveUserId),
-        orderBy('timestamp', 'desc')
+        orderBy('eventDate', 'desc')
       );
 
       const querySnapshot = await getDocs(q);
@@ -57,14 +58,18 @@ export default function ProfileScreen() {
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
+        // Get the first image URL from either mediaFiles array or imageUrl field
+        const imageUrl = data.mediaFiles?.find((file: any) => file.type === 'image')?.url || data.imageUrl;
+        
         sightings.push({
           id: doc.id,
           type: data.type,
           title: data.title,
           description: data.description,
-          imageUrl: data.imageUrl,
+          imageUrl: imageUrl,
           timestamp: data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : data.timestamp || new Date().toISOString(),
           location: data.location,
+          mediaFiles: data.mediaFiles,
         });
       });
 
